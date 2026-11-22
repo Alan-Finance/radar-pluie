@@ -185,6 +185,31 @@
   .stlist input { width:20px; height:20px; accent-color:var(--blue); flex:none; }
   .home { font-size:22px; line-height:1; filter:drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
   .favlist .del { border:0; background:#fdecec; border-radius:8px; width:38px; height:34px; font-size:16px; cursor:pointer; flex:none; margin-left:6px; }
+
+  /* ===== Prévisions plus compactes (« dézoom ») ===== */
+  .appbar { font-size:17px; padding:calc(env(safe-area-inset-top) + 8px) 12px 8px; }
+  .wrap { padding:8px 10px 20px; }
+  .lieu input { font-size:15px; padding:7px 10px; }
+  .lieu .gps { width:36px; height:36px; font-size:16px; }
+  .minihere { font-size:12.5px; }
+  .daytabs { margin:8px -10px 8px; }
+  .daytabs button { min-width:62px; font-size:12.5px; padding:4px 4px 6px; }
+  .daytabs button .ic { font-size:21px; }
+  .dcard { grid-template-columns:46px 1fr; gap:5px; margin-bottom:6px; }
+  .dcard .date small { font-size:12px; } .dcard .date b { font-size:20px; }
+  .dcard .info { padding:5px 6px; gap:2px; }
+  .cell .ic { font-size:20px; }
+  .tmin, .tmax { font-size:14px; }
+  .row2 { gap:6px; }
+  .wind { grid-template-columns:22px auto; column-gap:4px; }
+  .wind svg { width:20px; height:20px; }
+  .wind .sp, .wind .gu { font-size:13.5px; } .wind .dir { font-size:11.5px; }
+  .pluie { grid-template-columns:16px auto; column-gap:5px; }
+  .gauge { width:14px; height:24px; }
+  .pluie .mm { font-size:14.5px; } .pluie .risk { font-size:11.5px; white-space:nowrap; }
+  .detail-head { padding:9px 11px; gap:10px; } .detail-head .big { font-size:36px; } .detail-head h2 { font-size:16px; } .detail-head p { font-size:12.5px; }
+  .hrow { grid-template-columns:36px 28px 38px 1fr 1.1fr; padding:5px 8px; font-size:13.5px; }
+  .hrow .ic { font-size:18px; } .hrow .w svg { width:15px; height:15px; }
 </style>
 </head>
 <body>
