@@ -93,12 +93,104 @@
   .favlist { list-style:none; margin:0; padding:0; max-height:50vh; overflow:auto; }
   .favlist li { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
   .favlist .muted { color:var(--muted); font-size:12px; margin-left:auto; }
+
+  /* ===== pages & barre d'onglets ===== */
+  :root { --tabbar:60px; --bg:#eef2f5; --blue:#3f86b5; --red:#e0322f; }
+  body { background:var(--bg); }
+  .page { display:none; }
+  .page.active { display:block; }
+  .tabbar { position:fixed; z-index:1500; left:0; right:0; bottom:0; height:calc(var(--tabbar) + env(safe-area-inset-bottom)); padding-bottom:env(safe-area-inset-bottom);
+    background:#fff; border-top:1px solid var(--line); display:grid; grid-template-columns:repeat(3,1fr); }
+  .tabbar button { border:0; background:none; color:var(--blue); font-size:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer; }
+  .tabbar button span { font-size:21px; line-height:1; }
+  .tabbar button.active { background:var(--blue); color:#fff; }
+  #page-radar .bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 8px); }
+  #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 200px); }
+  .scroll { position:fixed; left:0; right:0; top:0; bottom:calc(var(--tabbar) + env(safe-area-inset-bottom)); overflow-y:auto; -webkit-overflow-scrolling:touch; background:var(--bg); }
+  .appbar { position:sticky; top:0; z-index:10; background:#fff; border-bottom:3px solid var(--blue); padding:calc(env(safe-area-inset-top) + 12px) 16px 12px; text-align:center; font-size:20px; font-weight:600; }
+  .wrap { max-width:640px; margin:0 auto; padding:12px 12px 24px; }
+  .lieu { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+  .lieu form { flex:1; display:flex; }
+  .lieu input { flex:1; min-width:0; font-size:17px; padding:10px 12px; border:1px solid #9aa7b3; border-radius:6px; background:#fff; color:var(--text); }
+  .lieu .gps { width:44px; height:44px; border-radius:50%; border:0; background:#fff; font-size:20px; box-shadow:0 1px 3px rgba(0,0,0,.15); cursor:pointer; }
+  .mini { position:relative; height:190px; border-radius:8px; overflow:hidden; border:4px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.15); cursor:pointer; }
+  .mini #minimap { position:absolute; inset:0; background:#dfe6ec; }
+  .mini .tag { position:absolute; z-index:500; left:8px; bottom:8px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px 8px; font-size:12px; font-weight:600; }
+  .mini .grow { position:absolute; z-index:500; right:8px; top:8px; background:#fff; border-radius:6px; width:34px; height:34px; display:grid; place-items:center; font-size:18px; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .minihere { margin:8px 2px 0; font-size:13px; color:var(--muted); }
+  .minihere b { color:var(--text); }
+  .daytabs { display:flex; overflow-x:auto; gap:0; margin:14px -12px 10px; padding:0 12px; scrollbar-width:none; border-bottom:1px solid var(--line); }
+  .daytabs::-webkit-scrollbar { display:none; }
+  .daytabs button { flex:none; min-width:84px; border:0; background:none; padding:6px 6px 8px; color:var(--blue); font-size:15px; cursor:pointer; border-bottom:3px solid transparent; }
+  .daytabs button .ic { display:block; font-size:28px; line-height:1.2; }
+  .daytabs button.active { border-bottom-color:var(--blue); font-weight:600; }
+  .dcard { display:grid; grid-template-columns:64px 1fr; gap:6px; margin-bottom:10px; cursor:pointer; }
+  .dcard > div { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .dcard .date { display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--blue); }
+  .dcard .date small { font-size:15px; } .dcard .date b { font-size:26px; font-weight:600; }
+  .dcard .info { display:grid; grid-template-columns:1fr 1.15fr 1.25fr; align-items:center; padding:8px 8px; gap:4px; }
+  .cell { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+  .cell .ic { font-size:26px; line-height:1; }
+  .tmin { font-size:17px; } .tmax { font-size:17px; color:var(--red); font-weight:600; }
+  .row2 { display:flex; gap:10px; align-items:baseline; }
+  .wind { display:grid; grid-template-columns:30px auto; column-gap:6px; align-items:center; }
+  .wind svg { width:26px; height:26px; }
+  .wind .sp { font-size:16px; } .wind .gu { font-size:16px; color:var(--red); font-weight:600; } .wind .dir { font-size:14px; text-align:center; color:var(--muted); }
+  .pluie { display:grid; grid-template-columns:22px auto; column-gap:6px; align-items:center; }
+  .pluie .mm { font-size:17px; font-weight:600; } .pluie .risk { font-size:13px; color:#8c99a6; }
+  .gauge { width:18px; height:30px; }
+  .detail-head { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); padding:12px 14px; margin-bottom:10px; display:flex; gap:14px; align-items:center; }
+  .detail-head .big { font-size:46px; }
+  .detail-head h2 { margin:0 0 2px; font-size:18px; }
+  .detail-head p { margin:0; color:var(--muted); font-size:13px; }
+  .hours-list { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .hrow { display:grid; grid-template-columns:44px 34px 46px 1fr 1.1fr; align-items:center; padding:8px 10px; border-bottom:1px solid #edf0f3; font-size:15px; gap:4px; }
+  .hrow:last-child { border-bottom:0; }
+  .hrow .h { font-weight:600; color:var(--blue); } .hrow .ic { font-size:22px; } .hrow .t { font-weight:600; }
+  .hrow .r { color:#2b6a9a; } .hrow .r small { color:#8c99a6; }
+  .hrow .w { display:flex; align-items:center; gap:4px; } .hrow .w svg { width:18px; height:18px; } .hrow .w .gu { color:var(--red); font-size:13px; }
+  .hrow.wet { background:#f2f8fd; }
+  .muted { color:var(--muted); } .center { text-align:center; } .small { font-size:12px; }
+  .note { background:#fff; border-left:4px solid var(--blue); padding:10px 12px; margin:10px 0; font-size:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .chips { display:flex; gap:8px; overflow-x:auto; margin:4px 0 12px; scrollbar-width:none; }
+  .chips button { flex:none; border:1px solid var(--blue); color:var(--blue); background:#fff; border-radius:999px; padding:7px 12px; font-size:14px; cursor:pointer; }
+  .chips button.active { background:var(--blue); color:#fff; }
+  .tiles { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .tile { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); padding:10px 12px; }
+  .tile small { color:var(--muted); font-size:13px; display:block; } .tile b { font-size:26px; color:#2b6a9a; } .tile i { font-style:normal; font-size:12px; color:#8c99a6; }
+  .tile.wide { grid-column:span 2; }
+  .chart { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); padding:10px 12px; margin-top:10px; }
+  .chart h3 { margin:0 0 6px; font-size:15px; color:var(--blue); }
+  .chart svg { width:100%; display:block; }
+  #page-radar .backbtn { font-size:24px; }
 </style>
 </head>
 <body>
+<section class="page active" id="page-prev"><div class="scroll">
+  <div class="appbar">Prévisions</div>
+  <div class="wrap">
+    <div class="lieu">
+      <form id="lieuForm"><input id="lieuInput" type="search" placeholder="Ville, village…" autocomplete="off" enterkeyhint="search"></form>
+      <button class="gps" id="lieuGps" title="Utiliser ma position">📍</button>
+    </div>
+    <div class="mini" id="miniBox"><div id="minimap"></div><div class="tag" id="miniTag">Radar</div><div class="grow">⤢</div></div>
+    <div class="minihere" id="miniHere"></div>
+    <div class="daytabs" id="daytabs"></div>
+    <div id="prevContent"><p class="center muted">Chargement des prévisions…</p></div>
+    <p class="small muted center">Prévisions : Open-Meteo (modèles Météo-France, ECMWF…) · Radar : Météo-France</p>
+  </div>
+</div></section>
+
+<section class="page" id="page-rel"><div class="scroll">
+  <div class="appbar">Relevés</div>
+  <div class="wrap" id="relContent"><p class="center muted">Chargement des relevés…</p></div>
+</div></section>
+
+<section class="page" id="page-radar">
 <div id="map"></div>
 
 <div class="top">
+  <button class="card iconbtn backbtn" id="btnBack" title="Retour">‹</button>
   <div class="card title"><b>🌧️ Radar Pluie</b><small id="place">Chargement…</small></div>
   <button class="card iconbtn" id="btnFond" title="Fond de carte">🗺️</button>
   <button class="card iconbtn" id="btnFav" title="Mes points">⭐</button>
@@ -108,7 +200,6 @@
 <form class="card search" id="search"><input id="q" type="search" placeholder="Ville ou adresse…" autocomplete="off"><button type="submit">OK</button></form>
 <div class="card legendbtn" id="btnLegend">LÉGENDE</div>
 <div class="card legend" id="legend"></div>
-<div class="card toast" id="toast"></div>
 
 <div class="card bottom">
   <div class="stamp">
@@ -132,6 +223,14 @@
     <button id="next" aria-label="Suivant">›</button>
   </div>
 </div>
+</section>
+
+<div class="card toast" id="toast"></div>
+<nav class="tabbar">
+  <button data-page="prev" class="active"><span>🌦️</span>Prévisions</button>
+  <button data-page="radar"><span>📡</span>Radar</button>
+  <button data-page="rel"><span>🧪</span>Relevés</button>
+</nav>
 
 <div class="sheet" id="sheetAdd"><form class="card" id="formAdd">
   <h3 id="addTitle">Nouveau point</h3>
@@ -291,6 +390,7 @@ const POINTS = [
       show(wasNow || same < 0 ? nowIdx : same);
       if (!frames.length) $('rel').textContent = 'Pas encore de données';
       updateHere();
+      updateMini();
     } catch (e) {
       if (first) { $('rel').textContent = 'Données indisponibles'; toast('Les images ne sont pas encore prêtes. Réessaie dans quelques minutes.', 5000); }
     }
@@ -349,6 +449,7 @@ const POINTS = [
       txt = `Pluie ${label} ${mins <= 0 ? 'imminente' : 'dans ' + fmtDur(mins)} (${INTENSITY[maxCls]} au plus fort)`;
     }
     $('here').innerHTML = '<b>' + esc(txt) + '</b>';
+    if ($('miniHere')) $('miniHere').innerHTML = '<b>' + esc(txt) + '</b>';
   }
   map.on('moveend', () => { if (!herePoint) updateHere(); });
 
@@ -359,14 +460,14 @@ const POINTS = [
     if (label) { $('place').textContent = label; return; }
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&accept-language=fr&lat=${lat}&lon=${lon}`)
       .then(r => r.json()).then(j => { const a = j.address || {}; const c = a.city || a.town || a.village || a.municipality;
-        if (c) { $('place').textContent = '📍 ' + c; hereLabel = 'à ' + c; updateHere(); } }).catch(() => {});
+        if (c) { $('place').textContent = '📍 ' + c; if (followGps) { hereLabel = 'à ' + c; updateHere(); } } }).catch(() => {});
   }
   function onPos(p) {
     const ll = [p.coords.latitude, p.coords.longitude];
     if (!meMarker) { meMarker = L.marker(ll, { icon: meIcon, zIndexOffset: 1000 }).addTo(map);
       meCircle = L.circle(ll, { radius: p.coords.accuracy, color: '#1f8ef1', weight: 1, fillOpacity: .06 }).addTo(map); }
     else { meMarker.setLatLng(ll); meCircle.setLatLng(ll).setRadius(p.coords.accuracy); }
-    herePoint = L.latLng(ll); if (!hereLabel) hereLabel = 'à ta position';
+    if (followGps) { herePoint = L.latLng(ll); hereLabel = 'à ta position'; }
     if (firstFix) { if (!VUE_DEPART || recenterOnFix) map.setView(ll, VUE_DEPART ? VUE_DEPART.zoom : 9);
       setPlace(ll[0], ll[1]); firstFix = false; recenterOnFix = false; }
     updateHere();
@@ -381,7 +482,8 @@ const POINTS = [
     else { firstFix = true; recenterOnFix = !!recenter; }
     if (watchId === null) watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   }
-  $('btnLocate').onclick = () => locate(true);
+  let followGps = false;
+  $('btnLocate').onclick = () => { followGps = true; locate(true); };
 
   // ---------------------------------------------------------------- recherche
   $('btnSearch').onclick = () => { const s = $('search'); s.classList.toggle('open'); if (s.classList.contains('open')) $('q').focus(); };
@@ -450,7 +552,259 @@ const POINTS = [
   ['sheetAdd', 'sheetFav', 'sheetFond'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
   drawPoints();
 
+  // ================================================================ lieu (prévisions, relevés, « pluie ici »)
+  const LIEU_DEFAUT = { nom: 'Marcilly-sur-Vienne', lat: 47.0435, lon: 0.5393 };
+  let lieu = LIEU_DEFAUT;
+  try { const saved = JSON.parse(localStorage.getItem('radar-pluie-lieu') || 'null'); if (saved && saved.lat) lieu = saved; } catch {}
+  function setLieu(l, save) {
+    lieu = l;
+    if (save) { try { localStorage.setItem('radar-pluie-lieu', JSON.stringify(l)); } catch {} }
+    $('lieuInput').value = l.nom;
+    if (!followGps) $('place').textContent = '📍 ' + l.nom;
+    if (!followGps) { herePoint = L.latLng(l.lat, l.lon); hereLabel = 'à ' + l.nom; }
+    if (mini) mini.setView([l.lat, l.lon], 8);
+    miniMarker && miniMarker.setLatLng([l.lat, l.lon]);
+    updateHere();
+    loadForecast();
+  }
+  fetch('config.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(c => {
+    let saved = null; try { saved = localStorage.getItem('radar-pluie-lieu'); } catch {}
+    if (c && c.lieu && !saved) setLieu(c.lieu, false);
+  }).catch(() => {});
+
+  // ================================================================ navigation
+  let page = 'prev', lastPage = 'prev';
+  function go(p) {
+    if (p !== 'radar') lastPage = p;
+    page = p;
+    document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
+    document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
+    if (p === 'radar') { setTimeout(() => { map.invalidateSize(); }, 30); }
+    else { pause(); }
+    if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
+    if (p === 'rel') loadReleves();
+  }
+  document.querySelectorAll('.tabbar button').forEach(b => b.onclick = () => go(b.dataset.page));
+  $('btnBack').onclick = () => go(lastPage);
+
+  // ================================================================ mini-carte radar (Prévisions)
+  const mini = L.map('minimap', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, tap: false }).setView([lieu.lat, lieu.lon], 8);
+  L.tileLayer(ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(mini);
+  mini.createPane('labels'); mini.getPane('labels').style.zIndex = 650; mini.getPane('labels').style.pointerEvents = 'none';
+  L.tileLayer(ESRI + 'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, pane: 'labels' }).addTo(mini);
+  const miniMarker = L.marker([lieu.lat, lieu.lon], { icon: L.divIcon({ className: '', html: '<div class="pin"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(mini);
+  let miniOverlay = null;
+  function updateMini() {
+    if (!meta || !frames.length) return;
+    const f = frames[nowIdx];
+    if (miniOverlay) mini.removeLayer(miniOverlay);
+    miniOverlay = L.imageOverlay(f.file, meta.bounds, { opacity: .85, className: 'rain', interactive: false }).addTo(mini);
+    $('miniTag').textContent = '📡 Radar · ' + fmtTime(new Date(f.time));
+  }
+  $('miniBox').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); show(nowIdx); };
+
+  // ================================================================ prévisions 10 jours (Open-Meteo)
+  const WMO = {
+    0: ['☀️', 'Ensoleillé', '🌙'], 1: ['🌤️', 'Peu nuageux', '🌙'], 2: ['⛅', 'Éclaircies', '☁️'], 3: ['☁️', 'Couvert'],
+    45: ['🌫️', 'Brouillard'], 48: ['🌫️', 'Brouillard givrant'],
+    51: ['🌦️', 'Bruine faible'], 53: ['🌦️', 'Bruine'], 55: ['🌧️', 'Bruine forte'], 56: ['🌧️', 'Bruine verglaçante'], 57: ['🌧️', 'Bruine verglaçante'],
+    61: ['🌧️', 'Pluie faible'], 63: ['🌧️', 'Pluie'], 65: ['🌧️', 'Forte pluie'], 66: ['🌧️', 'Pluie verglaçante'], 67: ['🌧️', 'Pluie verglaçante'],
+    71: ['🌨️', 'Neige faible'], 73: ['🌨️', 'Neige'], 75: ['❄️', 'Forte neige'], 77: ['🌨️', 'Grains de neige'],
+    80: ['🌦️', 'Averses'], 81: ['🌧️', 'Averses'], 82: ['⛈️', 'Fortes averses'], 85: ['🌨️', 'Averses de neige'], 86: ['❄️', 'Averses de neige'],
+    95: ['⛈️', 'Orage'], 96: ['⛈️', 'Orage avec grêle'], 99: ['⛈️', 'Orage avec grêle'],
+  };
+  const wIcon = (code, night) => { const w = WMO[code] || ['❔', '']; return night && w[2] ? w[2] : w[0]; };
+  const wText = (code) => (WMO[code] || ['', ''])[1];
+  const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  const dirTxt = (deg) => DIRS[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
+  // flèche dans le sens où souffle le vent (le vent « vient » de deg)
+  const arrow = (deg) => `<svg viewBox="0 0 24 24"><g transform="rotate(${(deg + 180) % 360} 12 12)"><path d="M12 2 L19 20 L12 15.5 L5 20 Z" fill="none" stroke="#3f86b5" stroke-width="1.8" stroke-linejoin="round"/></g></svg>`;
+  const gauge = (frac) => `<svg class="gauge" viewBox="0 0 18 30"><path d="M2 2 H16 L13 27 H5 Z" fill="none" stroke="#3f86b5" stroke-width="1.6"/><path d="M${4 + 0} ${27 - 22 * frac} H${14 - 0} L13 27 H5 Z" fill="#3f86b5" opacity=".8"/></svg>`;
+  const JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  const JOURS_LONG = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  let fc = null, dayIdx = -1, fcFor = '';
+
+  function pct(arr, p) { if (!arr.length) return 0; const a = [...arr].sort((x, y) => x - y); const i = (a.length - 1) * p; const lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi] - a[lo]) * (i - lo); }
+  function mmRange(d) {
+    if (d.range) {
+      const lo = Math.round(d.range[0]), hi = Math.round(d.range[1]);
+      if (hi < 1) return d.sum >= 0.5 ? '0-1mm' : '0mm';
+      return lo === hi ? `${lo}mm` : `${lo}-${hi}mm`;
+    }
+    return (d.sum < 0.5 ? '0' : Math.round(d.sum)) + 'mm';
+  }
+
+  async function loadForecast() {
+    const key = lieu.lat.toFixed(3) + ',' + lieu.lon.toFixed(3);
+    fcFor = key;
+    const q = `latitude=${lieu.lat}&longitude=${lieu.lon}&timezone=Europe%2FParis&forecast_days=10`;
+    try {
+      const [f, e] = await Promise.all([
+        fetch(`https://api.open-meteo.com/v1/forecast?${q}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset&hourly=temperature_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`).then(r => r.json()),
+        fetch(`https://ensemble-api.open-meteo.com/v1/ensemble?${q}&hourly=precipitation&models=ecmwf_ifs025`).then(r => r.json()).catch(() => null),
+      ]);
+      if (fcFor !== key) return;
+      if (!f.daily) throw new Error(f.reason || 'réponse vide');
+      const H = f.hourly;
+      const days = f.daily.time.map((date, i) => {
+        const hours = [];
+        H.time.forEach((t, k) => { if (t.startsWith(date)) hours.push({ t, h: +t.slice(11, 13), temp: H.temperature_2m[k], mm: H.precipitation[k], prob: H.precipitation_probability[k], code: H.weather_code[k], ws: H.wind_speed_10m[k], wg: H.wind_gusts_10m[k], wd: H.wind_direction_10m[k], day: H.is_day[k] }); });
+        const wmean = hours.reduce((a, h) => a + (h.ws || 0), 0) / Math.max(1, hours.length);
+        let range = null;
+        if (e && e.hourly) {
+          const sums = [];
+          Object.keys(e.hourly).filter(k => k.startsWith('precipitation')).forEach(k => {
+            let s = 0, n = 0; e.hourly.time.forEach((t, j) => { if (t.startsWith(date) && e.hourly[k][j] != null) { s += e.hourly[k][j]; n++; } });
+            if (n) sums.push(s);
+          });
+          if (sums.length > 5) range = [pct(sums, 0.2), pct(sums, 0.8)];
+        }
+        return { date, code: f.daily.weather_code[i], tmin: f.daily.temperature_2m_min[i], tmax: f.daily.temperature_2m_max[i], sum: f.daily.precipitation_sum[i] || 0,
+          prob: f.daily.precipitation_probability_max[i], gust: f.daily.wind_gusts_10m_max[i], dir: f.daily.wind_direction_10m_dominant[i], wind: wmean,
+          sunrise: f.daily.sunrise[i], sunset: f.daily.sunset[i], range, hours };
+      });
+      fc = { days };
+      renderForecast();
+    } catch (err) {
+      $('prevContent').innerHTML = '<div class="note">Prévisions indisponibles pour le moment. Vérifie ta connexion et réessaie.</div>';
+    }
+  }
+
+  const r5 = (v) => Math.max(5, Math.round((v || 0) / 5) * 5);
+  function dayLabel(date) { const d = new Date(date + 'T12:00'); return { short: JOURS[d.getDay()], num: d.getDate(), long: `${JOURS_LONG[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}` }; }
+
+  function renderForecast() {
+    if (!fc) return;
+    $('daytabs').innerHTML = `<button data-i="-1" class="${dayIdx < 0 ? 'active' : ''}"><span class="ic">☰</span>10 jours</button>` +
+      fc.days.map((d, i) => { const l = dayLabel(d.date); return `<button data-i="${i}" class="${dayIdx === i ? 'active' : ''}"><span class="ic">${wIcon(d.code)}</span>${l.short} ${l.num}</button>`; }).join('');
+    $('daytabs').querySelectorAll('button').forEach(b => b.onclick = () => { dayIdx = +b.dataset.i; renderForecast(); });
+    const act = $('daytabs').querySelector('button.active'); if (act) act.scrollIntoView({ block: 'nearest', inline: 'center' });
+    if (dayIdx < 0) {
+      $('prevContent').innerHTML = fc.days.map((d, i) => {
+        const l = dayLabel(d.date);
+        const frac = Math.min(1, (d.range ? d.range[1] : d.sum) / 20);
+        return `<div class="dcard" data-i="${i}">
+          <div class="date"><small>${l.short.replace('.', '')}</small><b>${l.num}</b></div>
+          <div class="info">
+            <div class="cell"><span class="ic">${wIcon(d.code)}</span><div class="row2"><span class="tmin">${Math.round(d.tmin)}°C</span><span class="tmax">${Math.round(d.tmax)}°C</span></div></div>
+            <div class="wind">${arrow(d.dir)}<span class="sp">${r5(d.wind)}km/h</span><span class="dir">${dirTxt(d.dir)}</span><span class="gu">${r5(d.gust)}km/h</span></div>
+            <div class="pluie">${gauge(frac)}<div><div class="mm">${mmRange(d)}</div><div class="risk">Risque : ${d.prob ?? '–'}%</div></div></div>
+          </div></div>`;
+      }).join('');
+      $('prevContent').querySelectorAll('.dcard').forEach(c => c.onclick = () => { dayIdx = +c.dataset.i; renderForecast(); window.scrollTo(0, 0); });
+    } else {
+      const d = fc.days[dayIdx], l = dayLabel(d.date);
+      const nowH = new Date().getHours(), today = new Date().toISOString().slice(0, 10) === d.date || dayIdx === 0;
+      const hrs = d.hours.filter(h => !(dayIdx === 0 && h.h < nowH));
+      $('prevContent').innerHTML = `
+        <div class="detail-head"><span class="big">${wIcon(d.code)}</span><div>
+          <h2>${l.long}</h2>
+          <p>${wText(d.code)} · <b style="color:var(--text)">${Math.round(d.tmin)}°</b> / <b style="color:var(--red)">${Math.round(d.tmax)}°</b></p>
+          <p>Pluie ${mmRange(d)} · risque ${d.prob ?? '–'}% · vent ${dirTxt(d.dir)} ${r5(d.wind)} km/h, rafales ${r5(d.gust)} km/h</p>
+          <p>Soleil ${d.sunrise.slice(11)} – ${d.sunset.slice(11)}</p></div></div>
+        <div class="hours-list">${hrs.map(h => `
+          <div class="hrow${h.mm >= 0.1 ? ' wet' : ''}"><span class="h">${h.h}h</span><span class="ic">${wIcon(h.code, !h.day)}</span><span class="t">${Math.round(h.temp)}°</span>
+            <span class="r">${h.mm >= 0.1 ? h.mm.toFixed(1) + ' mm' : '–'} <small>${h.prob != null ? h.prob + '%' : ''}</small></span>
+            <span class="w">${arrow(h.wd)}${Math.round(h.ws)} <span class="gu">${Math.round(h.wg)}</span> <small class="muted">km/h</small></span></div>`).join('')}
+        </div>`;
+    }
+  }
+
+  $('lieuForm').onsubmit = async (e) => {
+    e.preventDefault(); const q = $('lieuInput').value.trim(); if (!q) return;
+    try {
+      const j = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(q)}`)).json();
+      if (!j.length) return toast('Lieu introuvable');
+      $('lieuInput').blur(); dayIdx = -1;
+      setLieu({ nom: j[0].display_name.split(',')[0], lat: +j[0].lat, lon: +j[0].lon }, true);
+    } catch { toast('Recherche indisponible'); }
+  };
+  $('lieuGps').onclick = () => {
+    if (!navigator.geolocation) return toast('Localisation indisponible');
+    toast('Recherche de ta position…', 2000);
+    navigator.geolocation.getCurrentPosition(async (p) => {
+      const lat = p.coords.latitude, lon = p.coords.longitude; let nom = 'Ma position';
+      try { const j = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=12&accept-language=fr&lat=${lat}&lon=${lon}`)).json(); const a = j.address || {}; nom = a.village || a.town || a.city || a.municipality || nom; } catch {}
+      dayIdx = -1; setLieu({ nom, lat, lon }, true);
+    }, () => toast('Localisation refusée ou introuvable', 4000), { enableHighAccuracy: true, timeout: 15000 });
+  };
+
+  // ================================================================ relevés (stations Météo-France)
+  let rel = null, relStation = 0, relLoaded = 0;
+  async function loadReleves() {
+    if (Date.now() - relLoaded < 120000 && rel) return renderReleves();
+    try {
+      const r = await fetch('data/releves.json?t=' + Date.now(), { cache: 'no-store' });
+      rel = r.ok ? await r.json() : null; relLoaded = Date.now();
+    } catch { rel = null; }
+    renderReleves();
+  }
+  const fmt1 = (v) => v == null ? '–' : (Math.round(v * 10) / 10).toString().replace('.', ',');
+  function parisDay(offset) { const d = new Date(Date.now() - offset * 864e5); return d.toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' }); }
+
+  function bars(values, labels, opts) {
+    const W = 340, Hh = 120, pad = 18, n = values.length, max = Math.max(opts.min || 2, ...values.map(v => v || 0));
+    const bw = (W - 10) / n;
+    let svg = `<svg viewBox="0 0 ${W} ${Hh + pad}" role="img">`;
+    [0.5, 1].forEach(f => { const y = Hh - f * (Hh - 14); svg += `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="#e5eaef"/><text x="${W}" y="${y - 2}" font-size="9" text-anchor="end" fill="#8c99a6">${fmt1(max * f)} mm</text>`; });
+    values.forEach((v, i) => {
+      const h = v ? Math.max(1.5, (v / max) * (Hh - 14)) : 0, x = 5 + i * bw;
+      if (v == null) svg += `<rect x="${x + 1}" y="${Hh - 2}" width="${bw - 2}" height="2" fill="#e0e5ea"/>`;
+      else svg += `<rect x="${x + 1}" y="${Hh - h}" width="${Math.max(1, bw - 2)}" height="${h}" rx="1.5" fill="#3f86b5"><title>${labels[i]} : ${fmt1(v)} mm</title></rect>`;
+      if (labels[i] && (i % opts.every === 0)) svg += `<text x="${x + bw / 2}" y="${Hh + 13}" font-size="9" text-anchor="middle" fill="#5f6d7d">${labels[i]}</text>`;
+    });
+    return svg + '</svg>';
+  }
+
+  function renderReleves() {
+    const box = $('relContent');
+    if (!rel) { box.innerHTML = '<div class="note">Les relevés ne sont pas encore disponibles. Le robot les prépare : réessaie dans quelques minutes.</div>'; return; }
+    if (rel.status === 'acces_refuse') {
+      box.innerHTML = `<div class="note"><b>Il manque un abonnement Météo-France.</b><br>Sur portail-api.meteofrance.fr, abonne-toi à l'API <b>« Paquet Observations »</b> (DefaultApplication), génère un nouveau jeton, puis remplace la valeur du secret <b>METEOFRANCE_KEY</b> sur GitHub. Les relevés apparaîtront au passage suivant du robot.</div>`;
+      return;
+    }
+    if (!rel.stations || !rel.stations.length) { box.innerHTML = '<div class="note">Aucune station Météo-France avec pluviomètre trouvée près de ' + esc(rel.lieu.nom) + '.</div>'; return; }
+    relStation = Math.min(relStation, rel.stations.length - 1);
+    const st = rel.stations[relStation];
+    const hk = Object.keys(st.heures).sort();
+    const lastKey = [...hk].reverse().find(k => st.heures[k].rr != null);
+    const last = lastKey ? st.heures[lastKey] : null;
+    const lastT = [...hk].reverse().map(k => st.heures[k].t).find(t => t != null);
+    const J = st.jours || {};
+    const sumDays = (n) => { let s = 0, have = 0; for (let i = 0; i < n; i++) { const d = J[parisDay(i)]; if (d) { s += d.mm; have++; } } return { s, have }; };
+    const today = J[parisDay(0)], yest = J[parisDay(1)], w7 = sumDays(7), m30 = sumDays(30);
+    const since = Object.keys(J).sort()[0];
+    // 24 dernières heures
+    const now = new Date(); const h24 = [], l24 = [];
+    for (let i = 23; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - i));
+      const k = d.toISOString().slice(0, 13) + ':00Z';
+      h24.push(st.heures[k] ? st.heures[k].rr : null);
+      l24.push(d.toLocaleTimeString('fr-FR', { hour: '2-digit', timeZone: 'Europe/Paris' }).replace(' h', 'h'));
+    }
+    const d30 = [], l30 = [];
+    for (let i = 29; i >= 0; i--) { const k = parisDay(i); d30.push(J[k] ? J[k].mm : null); l30.push(k.slice(8, 10) + '/' + k.slice(5, 7)); }
+    box.innerHTML = `
+      <p class="muted small center">Pluviomètres Météo-France près de <b>${esc(rel.lieu.nom)}</b> · mis à jour à ${new Date(rel.updated).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+      <div class="chips">${rel.stations.map((s, i) => `<button data-i="${i}" class="${i === relStation ? 'active' : ''}">${esc(s.nom)} · ${s.km} km</button>`).join('')}</div>
+      <div class="tiles">
+        <div class="tile"><small>Dernière heure</small><b>${fmt1(last ? last.rr : null)}</b> mm<br><i>${lastKey ? 'jusqu’à ' + new Date(lastKey.replace('Z', ':00Z')).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''}</i></div>
+        <div class="tile"><small>Aujourd’hui</small><b>${fmt1(today ? today.mm : 0)}</b> mm<br><i>depuis minuit</i></div>
+        <div class="tile"><small>Hier</small><b>${fmt1(yest ? yest.mm : null)}</b> mm<br><i>${yest && yest.n < 24 ? 'partiel (' + yest.n + ' h)' : '&nbsp;'}</i></div>
+        <div class="tile"><small>Température</small><b>${lastT != null ? fmt1(lastT) : '–'}</b> °C<br><i>dernière mesure</i></div>
+        <div class="tile"><small>7 jours</small><b>${fmt1(w7.s)}</b> mm<br><i>${w7.have < 7 ? 'sur ' + w7.have + ' j relevés' : '&nbsp;'}</i></div>
+        <div class="tile"><small>30 jours</small><b>${fmt1(m30.s)}</b> mm<br><i>${m30.have < 30 ? 'sur ' + m30.have + ' j relevés' : '&nbsp;'}</i></div>
+      </div>
+      <div class="chart"><h3>Pluie des 24 dernières heures</h3>${bars(h24, l24, { every: 4, min: 1 })}</div>
+      <div class="chart"><h3>Pluie par jour (30 jours)</h3>${bars(d30, l30, { every: 5, min: 2 })}</div>
+      <p class="small muted">Données : Météo-France (observations horaires des stations). L’historique se construit depuis le ${since ? new Date(since + 'T12:00').toLocaleDateString('fr-FR') : 'premier relevé'} : Météo-France ne fournit que les dernières 24 h, le robot garde le reste.</p>`;
+    box.querySelectorAll('.chips button').forEach(b => b.onclick = () => { relStation = +b.dataset.i; renderReleves(); });
+  }
+
   // ---------------------------------------------------------------- démarrage
+  setLieu(lieu, false);
   loadFrames(true);
   setInterval(() => loadFrames(false), REFRESH_MS);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFrames(false); });
