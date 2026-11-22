@@ -630,15 +630,15 @@ const POINTS = [
   let fc = null, dayIdx = -1, fcFor = '';
 
   function pct(arr, p) { if (!arr.length) return 0; const a = [...arr].sort((x, y) => x - y); const i = (a.length - 1) * p; const lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi] - a[lo]) * (i - lo); }
+  // Total prévu (somme des heures affichées dans le détail) et fourchette des scénarios (ensemble ECMWF)
+  const mmTxt = (v) => v < 0.25 ? '0' : v < 10 ? fmt1(Math.round(v * 2) / 2) : String(Math.round(v));
+  function mmTotal(d) { return mmTxt(d.sum) + 'mm'; }
   function mmRange(d) {
-    if (d.range) {
-      const lo = Math.round(d.range[0]), hi = Math.round(d.range[1]);
-      if (hi < 1) return d.sum >= 0.5 ? '0-1mm' : '0mm';
-      return lo === hi ? `${lo}mm` : `${lo}-${hi}mm`;
-    }
-    return (d.sum < 0.5 ? '0' : Math.round(d.sum)) + 'mm';
+    if (!d.range) return '';
+    const lo = Math.min(d.range[0], d.sum), hi = Math.max(d.range[1], d.sum);
+    if (hi < 0.5) return '';
+    return `entre ${mmTxt(lo)} et ${mmTxt(hi)} mm selon les scénarios`;
   }
-
   async function loadForecast() {
     const key = lieu.lat.toFixed(3) + ',' + lieu.lon.toFixed(3);
     fcFor = key;
@@ -662,9 +662,10 @@ const POINTS = [
             let s = 0, n = 0; e.hourly.time.forEach((t, j) => { if (t.startsWith(date) && e.hourly[k][j] != null) { s += e.hourly[k][j]; n++; } });
             if (n) sums.push(s);
           });
-          if (sums.length > 5) range = [pct(sums, 0.2), pct(sums, 0.8)];
+          if (sums.length > 5) range = [pct(sums, 0.25), pct(sums, 0.75)];
         }
-        return { date, code: f.daily.weather_code[i], tmin: f.daily.temperature_2m_min[i], tmax: f.daily.temperature_2m_max[i], sum: f.daily.precipitation_sum[i] || 0,
+        const hsum = hours.reduce((a, h) => a + (h.mm || 0), 0);
+        return { date, code: f.daily.weather_code[i], tmin: f.daily.temperature_2m_min[i], tmax: f.daily.temperature_2m_max[i], sum: hsum,
           prob: f.daily.precipitation_probability_max[i], gust: f.daily.wind_gusts_10m_max[i], dir: f.daily.wind_direction_10m_dominant[i], wind: wmean,
           sunrise: f.daily.sunrise[i], sunset: f.daily.sunset[i], range, hours };
       });
@@ -687,13 +688,13 @@ const POINTS = [
     if (dayIdx < 0) {
       $('prevContent').innerHTML = fc.days.map((d, i) => {
         const l = dayLabel(d.date);
-        const frac = Math.min(1, (d.range ? d.range[1] : d.sum) / 20);
+        const frac = Math.min(1, d.sum / 20);
         return `<div class="dcard" data-i="${i}">
           <div class="date"><small>${l.short.replace('.', '')}</small><b>${l.num}</b></div>
           <div class="info">
             <div class="cell"><span class="ic">${wIcon(d.code)}</span><div class="row2"><span class="tmin">${Math.round(d.tmin)}°C</span><span class="tmax">${Math.round(d.tmax)}°C</span></div></div>
             <div class="wind">${arrow(d.dir)}<span class="sp">${r5(d.wind)}km/h</span><span class="dir">${dirTxt(d.dir)}</span><span class="gu">${r5(d.gust)}km/h</span></div>
-            <div class="pluie">${gauge(frac)}<div><div class="mm">${mmRange(d)}</div><div class="risk">Risque : ${d.prob ?? '–'}%</div></div></div>
+            <div class="pluie">${gauge(frac)}<div><div class="mm">${mmTotal(d)}</div><div class="risk">Risque : ${d.prob ?? '–'}%</div></div></div>
           </div></div>`;
       }).join('');
       $('prevContent').querySelectorAll('.dcard').forEach(c => c.onclick = () => { dayIdx = +c.dataset.i; renderForecast(); window.scrollTo(0, 0); });
@@ -705,12 +706,14 @@ const POINTS = [
         <div class="detail-head"><span class="big">${wIcon(d.code)}</span><div>
           <h2>${l.long}</h2>
           <p>${wText(d.code)} · <b style="color:var(--text)">${Math.round(d.tmin)}°</b> / <b style="color:var(--red)">${Math.round(d.tmax)}°</b></p>
-          <p>Pluie ${mmRange(d)} · risque ${d.prob ?? '–'}% · vent ${dirTxt(d.dir)} ${r5(d.wind)} km/h, rafales ${r5(d.gust)} km/h</p>
+          <p><b style="color:#2b6a9a">Pluie : ${mmTotal(d).replace('mm', ' mm')}</b> sur la journée · risque ${d.prob ?? '–'}%${mmRange(d) ? '<br><small>(' + mmRange(d) + ')</small>' : ''}</p>
+          <p>Vent ${dirTxt(d.dir)} ${r5(d.wind)} km/h, rafales ${r5(d.gust)} km/h</p>
           <p>Soleil ${d.sunrise.slice(11)} – ${d.sunset.slice(11)}</p></div></div>
         <div class="hours-list">${hrs.map(h => `
           <div class="hrow${h.mm >= 0.1 ? ' wet' : ''}"><span class="h">${h.h}h</span><span class="ic">${wIcon(h.code, !h.day)}</span><span class="t">${Math.round(h.temp)}°</span>
             <span class="r">${h.mm >= 0.1 ? h.mm.toFixed(1) + ' mm' : '–'} <small>${h.prob != null ? h.prob + '%' : ''}</small></span>
             <span class="w">${arrow(h.wd)}${Math.round(h.ws)} <span class="gu">${Math.round(h.wg)}</span> <small class="muted">km/h</small></span></div>`).join('')}
+          <div class="hrow" style="font-weight:600"><span></span><span></span><span>Total</span><span class="r">${fmt1(hrs.reduce((a, h) => a + (h.mm || 0), 0))} mm</span><span class="small muted">${dayIdx === 0 ? 'd’ici minuit' : 'sur la journée'}</span></div>
         </div>`;
     }
   }
