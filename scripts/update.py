@@ -47,7 +47,7 @@ AROMEPI_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}"
 
 # Zone dessinée (ouest, sud, est, nord) = celle de la prévision AROME-PI : métropole + Corse.
 WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
-DEG_PER_PX = 0.008  # ~ 600 m à la latitude de la France
+DEG_PER_PX = 0.010  # ~ 750 m à la latitude de la France (images plus légères pour les téléphones)
 SMOOTH_SIGMA_PX = 1.3  # lissage façon Météus (0 = aucun)
 
 PAST_HOURS = 2.0

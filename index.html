@@ -18,7 +18,7 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; color:var(--text); font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
   #map { position:fixed; inset:0; background:#dfe6ec; }
-  .rain { image-rendering:auto; transition:opacity .12s linear; }
+  .rain { image-rendering:auto; will-change:transform; }
 
   .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.12);
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
@@ -342,14 +342,28 @@ const POINTS = [
   const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
   // ---------------------------------------------------------------- images radar / prévision
-  let meta = null, frames = [], overlays = {}, images = {}, idx = 0, playing = false, timer = null, nowIdx = 0;
+  let meta = null, frames = [], images = {}, idx = 0, playing = false, timer = null, nowIdx = 0;
   const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
 
-  function overlayFor(f) {
-    if (!overlays[f.file]) {
-      overlays[f.file] = L.imageOverlay(f.file, meta.bounds, { opacity: 0, className: 'rain', interactive: false }).addTo(map);
-    }
-    return overlays[f.file];
+  // Deux calques seulement (affiché + suivant) au lieu d'un calque par image : beaucoup plus fluide sur téléphone.
+  let layerA = null, layerB = null, front = null, wanted = '';
+  function ensureLayers() {
+    if (layerA) { if (meta) { layerA.setBounds(L.latLngBounds(meta.bounds)); layerB.setBounds(L.latLngBounds(meta.bounds)); } return; }
+    const blank = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+    layerA = L.imageOverlay(blank, meta.bounds, { opacity: 0, className: 'rain', interactive: false }).addTo(map);
+    layerB = L.imageOverlay(blank, meta.bounds, { opacity: 0, className: 'rain', interactive: false }).addTo(map);
+    front = layerA;
+  }
+  function display(f) {
+    ensureLayers();
+    wanted = f.file;
+    if (front._url === f.file) { front.setOpacity(opacity); return; }
+    const back = front === layerA ? layerB : layerA;
+    const swap = () => { if (wanted !== f.file) return; back.setOpacity(opacity); front.setOpacity(0); front = back; };
+    if (back._url === f.file) return swap();
+    back.setOpacity(0);
+    back.once('load', swap);
+    back.setUrl(f.file);
   }
   function imageFor(f) {
     if (!images[f.file]) {
@@ -366,9 +380,8 @@ const POINTS = [
   function show(i) {
     if (!frames.length) return;
     idx = Math.max(0, Math.min(frames.length - 1, i));
-    frames.forEach((f, k) => { if (k !== idx && overlays[f.file]) overlays[f.file].setOpacity(0); });
-    overlayFor(frames[idx]).setOpacity(opacity);
-    overlayFor(frames[Math.min(idx + 1, frames.length - 1)]);
+    display(frames[idx]);
+    imageFor(frames[Math.min(idx + 1, frames.length - 1)]);
     const f = frames[idx], d = new Date(f.time);
     const future = f.kind === 'prevision';
     $('kind').textContent = future ? 'Prévision' : 'Mesure';
@@ -422,12 +435,13 @@ const POINTS = [
       const curTime = frames[idx] && frames[idx].time;
       meta = m; frames = m.frames || [];
       const keep = new Set(frames.map(f => f.file));
-      Object.keys(overlays).forEach(k => { if (!keep.has(k)) { map.removeLayer(overlays[k]); delete overlays[k]; delete images[k]; } });
+      Object.keys(images).forEach(k => { if (!keep.has(k)) delete images[k]; });
+      ensureLayers();
       let last = -1; frames.forEach((f, k) => { if (f.kind === 'radar') last = k; });
       nowIdx = Math.max(0, last);
       if (first) buildLegend();
       layoutTrack();
-      frames.forEach(f => { overlayFor(f); imageFor(f); });
+      frames.forEach(f => imageFor(f));  // préchargement (cache du navigateur)
       const same = frames.findIndex(f => f.time === curTime);
       show(wasNow || same < 0 ? nowIdx : same);
       if (!frames.length) $('rel').textContent = 'Pas encore de données';
