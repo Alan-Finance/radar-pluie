@@ -1,5 +1,9 @@
 {
-  "lieu": { "nom": "Marcilly-sur-Vienne", "lat": 47.0435, "lon": 0.5393 },
-  "rayon_stations_km": 35,
-  "nb_stations": 5
+  "lieu": {
+    "nom": "Marcilly-sur-Vienne",
+    "lat": 47.0435,
+    "lon": 0.5393
+  },
+  "rayon_stations_km": 50,
+  "nb_stations": 40
 }

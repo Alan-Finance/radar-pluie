@@ -78,6 +78,8 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
     wanted = int(config.get("nb_stations", 5))
     now = datetime.now(UTC)
     state = previous if previous.get("lieu", {}).get("nom") == lieu["nom"] else {}
+    if state and state.get("rayon_km") != radius:
+        state = dict(state, hours_done=[])  # nouveau rayon : on relit les 24 h pour les nouvelles stations
     stations: dict[str, dict] = {s["id"]: s for s in state.get("stations", [])}
     hours_done: set[str] = set(state.get("hours_done", []))
     status = "ok"
@@ -167,6 +169,7 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
         "updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "status": status if (useful or status != "ok") else "aucune_station",
         "lieu": lieu,
+        "rayon_km": radius,
         "hours_done": sorted(hours_done),
         "stations": useful[:wanted],
     }
@@ -190,5 +193,5 @@ def run(session: requests.Session, out_dir: Path, pages_url: str, log) -> None:
     result = update_releves(session, config, previous, log)
     (out_dir / "data").mkdir(parents=True, exist_ok=True)
     (out_dir / "data" / "releves.json").write_text(json.dumps(result, ensure_ascii=False))
-    names = ", ".join(f"{s['nom']} ({s['km']} km)" for s in result["stations"])
+    names = ", ".join(f"{s['nom']} ({s['km']} km)" for s in result["stations"][:8]) + (f" … ({len(result['stations'])} stations)" if len(result["stations"]) > 8 else "")
     log(f"Relevés publiés : {result['status']} — {names or 'aucune station'}")

@@ -179,6 +179,11 @@
   .cgrid { display:grid; grid-template-columns:repeat(6,1fr); text-align:center; margin-top:6px; row-gap:2px; }
   .ch { font-size:15px; color:#333; }
   .cv { font-size:21px; color:#8c99a6; } .cv.wet { color:#1f6fb8; } .cv sup { font-size:10px; color:#8c99a6; }
+  .choose { display:block; margin:0 auto 12px; border:1px solid var(--blue); background:#fff; color:var(--blue); border-radius:999px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  .stlist li { padding:0; }
+  .stlist label { display:flex; align-items:center; gap:10px; width:100%; padding:10px 4px; cursor:pointer; }
+  .stlist input { width:20px; height:20px; accent-color:var(--blue); flex:none; }
+  .home { font-size:22px; line-height:1; filter:drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
 </style>
 </head>
 <body>
@@ -260,6 +265,11 @@
   <h3>Fond de carte</h3><ul class="favlist" id="fondList"></ul>
   <div class="actions"><button type="button" class="btn" id="fondClose">Fermer</button></div>
 </div></div>
+<div class="sheet" id="sheetSt"><div class="card">
+  <h3>Mes stations</h3><p class="small muted" style="margin:-6px 0 8px">Pluviomètres Météo-France dans un rayon de 50 km, du plus proche au plus loin.</p>
+  <ul class="favlist stlist" id="stList"></ul>
+  <div class="actions"><button type="button" class="btn" id="stCancel">Annuler</button><button type="button" class="btn primary" id="stSave">Enregistrer</button></div>
+</div></div>
 <div class="sheet" id="sheetFav"><div class="card">
   <h3>Mes points</h3><ul class="favlist" id="favList"></ul>
   <p style="color:var(--muted);font-size:12px;margin:10px 0 0">Appui long sur la carte pour ajouter un point.</p>
@@ -272,7 +282,8 @@
                 Mets null pour démarrer sur ta position GPS.
    POINTS     : tes points fixes, affichés avec leur nom sur la carte.
    Tu peux aussi ajouter des points depuis l'appli : appui long sur la carte. */
-const VUE_DEPART = { lat: 47.10, lon: 0.60, zoom: 9 };
+const MAISON = { nom: 'Maison', lat: 47.0435, lon: 0.5393 };   // localisation habituelle : point fixe sur la carte
+const VUE_DEPART = { lat: MAISON.lat, lon: MAISON.lon, zoom: 9 };
 const POINTS = [
   { nom: 'Tours',         lat: 47.3941, lon: 0.6848 },
   { nom: 'Châtellerault', lat: 46.8178, lon: 0.5458 },
@@ -566,6 +577,10 @@ const POINTS = [
   $('fondClose').onclick = () => $('sheetFond').classList.remove('open');
   ['sheetAdd', 'sheetFav', 'sheetFond'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
   drawPoints();
+  L.marker([MAISON.lat, MAISON.lon], { icon: L.divIcon({ className: '', html: '<div class="home">🏠</div>', iconSize: [24, 24], iconAnchor: [12, 12] }), zIndexOffset: 900, keyboard: false })
+    .bindTooltip(esc(MAISON.nom), { permanent: true, direction: 'right', offset: [10, 0], className: 'pinlabel' })
+    .on('click', () => follow({ nom: MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }))
+    .addTo(map);
 
   // ================================================================ lieu (prévisions, relevés, « pluie ici »)
   const LIEU_DEFAUT = { nom: 'Marcilly-sur-Vienne', lat: 47.0435, lon: 0.5393 };
@@ -803,11 +818,15 @@ const POINTS = [
       return;
     }
     if (!rel.stations || !rel.stations.length) { box.innerHTML = '<div class="note">Aucune station Météo-France avec pluviomètre trouvée près de ' + esc(rel.lieu.nom) + '.</div>'; return; }
-    const sts = rel.stations;
+    const all = rel.stations;
+    let chosen = null; try { chosen = JSON.parse(localStorage.getItem('radar-pluie-stations') || 'null'); } catch {}
+    let sts = chosen && chosen.length ? all.filter(x => chosen.includes(x.id)) : [];
+    if (!sts.length) sts = all.slice(0, 5);
     relStation = Math.min(relStation, sts.length - 1);
     const lastKeys = sts.map(lastKeyOf).filter(Boolean).sort();
     const ref = lastKeys.length ? hdate(lastKeys[lastKeys.length - 1]) : new Date();
-    const head = `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>`;
+    const head = `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>
+      <button class="choose" id="btnChoose">⚙️ Choisir mes stations (${sts.length}/${all.length})</button>`;
 
     const night = `<div class="sec"><div class="sech">Analyse de la nuit (22h00 – 6h00)</div>${sts.map(st => {
       const n = nightOf(st);
@@ -830,12 +849,31 @@ const POINTS = [
     for (let i = 29; i >= 0; i--) { const k = parisDay(i); d30.push(J[k] ? J[k].mm : null); l30.push(k.slice(8, 10) + '/' + k.slice(5, 7)); }
     const since = Object.keys(J).sort()[0];
 
-    box.innerHTML = head + night + cumul + `
+    box.innerHTML = head + cumul + night + `
       <div class="chart"><h3>${esc(st.nom)} · pluie heure par heure (24 h)</h3>${bars(h24, l24, { every: 4, min: 1 })}</div>
       <div class="chart"><h3>${esc(st.nom)} · pluie par jour (30 jours)</h3>${bars(d30, l30, { every: 5, min: 2 })}</div>
       <p class="small muted">Touche une station pour voir ses graphiques. <sup>*</sup> = cumul partiel : Météo-France ne fournit que les dernières 24 h, l'historique se construit au fil des jours${since ? ' (depuis le ' + new Date(since + 'T12:00').toLocaleDateString('fr-FR') + ')' : ''}.<br>Données : pluviomètres Météo-France, observations horaires.</p>`;
     box.querySelectorAll('.crow').forEach(r => r.onclick = () => { relStation = +r.dataset.i; renderReleves(); });
+    $('btnChoose').onclick = () => openStations(all, sts);
   }
+
+  function openStations(all, sts) {
+    const on = new Set(sts.map(x => x.id));
+    $('stList').innerHTML = all.map(x => {
+      const d = sumHours(x, Date.now(), 24);
+      return `<li><label><input type="checkbox" value="${esc(x.id)}" ${on.has(x.id) ? 'checked' : ''}>
+        <b>${esc(x.nom)}</b><span class="muted">${Math.round(x.km)} km · ${d.have ? fmtMm(d.s) + ' mm/24 h' : '–'}</span></label></li>`;
+    }).join('');
+    $('sheetSt').classList.add('open');
+  }
+  $('stSave').onclick = () => {
+    const ids = [...$('stList').querySelectorAll('input:checked')].map(i => i.value);
+    if (!ids.length) return toast('Choisis au moins une station');
+    try { localStorage.setItem('radar-pluie-stations', JSON.stringify(ids)); } catch {}
+    relStation = 0; $('sheetSt').classList.remove('open'); renderReleves();
+  };
+  $('stCancel').onclick = () => $('sheetSt').classList.remove('open');
+  $('sheetSt').addEventListener('click', (e) => { if (e.target.id === 'sheetSt') $('sheetSt').classList.remove('open'); });
 
   // ---------------------------------------------------------------- démarrage
   setLieu(lieu, false);
