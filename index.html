@@ -193,6 +193,7 @@
     <div class="lieu">
       <form id="lieuForm"><input id="lieuInput" type="search" placeholder="Ville, village…" autocomplete="off" enterkeyhint="search"></form>
       <button class="gps" id="lieuGps" title="Utiliser ma position">📍</button>
+      <button class="gps" id="lieuHome" title="Ma maison">🏠</button>
     </div>
     <div class="minihere" id="miniHere" title="Voir le radar"></div>
     <div class="daytabs" id="daytabs"></div>
@@ -257,6 +258,7 @@
   <input id="addName" placeholder="Nom (ex. Maison, Champ du haut…)" maxlength="40" autocomplete="off">
   <div class="actions">
     <button type="button" class="btn danger" id="addDelete" style="display:none;margin-right:auto">Supprimer</button>
+    <button type="button" class="btn" id="addHome" style="margin-right:auto">🏠 Mettre ma maison ici</button>
     <button type="button" class="btn" id="addCancel">Annuler</button>
     <button type="submit" class="btn primary">Enregistrer</button>
   </div>
@@ -270,6 +272,18 @@
   <ul class="favlist stlist" id="stList"></ul>
   <div class="actions"><button type="button" class="btn" id="stCancel">Annuler</button><button type="button" class="btn primary" id="stSave">Enregistrer</button></div>
 </div></div>
+<div class="sheet" id="sheetHome"><div class="card">
+  <h3>🏠 Ma maison</h3>
+  <p class="small muted" style="margin:-4px 0 10px">Actuellement : <span id="homeNow"></span></p>
+  <input id="homeName" placeholder="Nom sur la carte (ex. Maison)" maxlength="30" autocomplete="off">
+  <ul class="favlist" style="margin-top:8px">
+    <li id="homeGps">📍 Ma position GPS actuelle</li>
+    <li id="homeUseLieu"></li>
+    <li id="homeMap">🗺️ La placer précisément sur la carte</li>
+    <li id="homeWeather">🌦️ Voir la météo de la maison</li>
+  </ul>
+  <div class="actions"><button type="button" class="btn" id="homeClose">Fermer</button></div>
+</div></div>
 <div class="sheet" id="sheetFav"><div class="card">
   <h3>Mes points</h3><ul class="favlist" id="favList"></ul>
   <p style="color:var(--muted);font-size:12px;margin:10px 0 0">Appui long sur la carte pour ajouter un point.</p>
@@ -282,7 +296,9 @@
                 Mets null pour démarrer sur ta position GPS.
    POINTS     : tes points fixes, affichés avec leur nom sur la carte.
    Tu peux aussi ajouter des points depuis l'appli : appui long sur la carte. */
-const MAISON = { nom: 'Maison', lat: 47.0435, lon: 0.5393 };   // localisation habituelle : point fixe sur la carte
+// localisation habituelle (point fixe 🏠 sur la carte) : modifiable dans l'appli, gardée sur le téléphone
+let MAISON = { nom: 'Maison', ville: 'Marcilly-sur-Vienne', lat: 47.0435, lon: 0.5393 };
+try { const m = JSON.parse(localStorage.getItem('radar-pluie-maison') || 'null'); if (m && m.lat) MAISON = m; } catch {}
 const VUE_DEPART = { lat: MAISON.lat, lon: MAISON.lon, zoom: 9 };
 const POINTS = [
   { nom: 'Tours',         lat: 47.3941, lon: 0.6848 },
@@ -549,6 +565,7 @@ const POINTS = [
     $('addTitle').textContent = editing ? 'Modifier le point' : 'Nouveau point';
     $('addName').value = editing ? persos[editIndex].nom : '';
     $('addDelete').style.display = editing ? '' : 'none';
+    $('addHome').style.display = editing ? 'none' : '';
     $('sheetAdd').classList.add('open'); setTimeout(() => $('addName').focus(), 50);
   }
   const closeAdd = () => { $('sheetAdd').classList.remove('open'); $('addName').blur(); };
@@ -577,13 +594,48 @@ const POINTS = [
   $('fondClose').onclick = () => $('sheetFond').classList.remove('open');
   ['sheetAdd', 'sheetFav', 'sheetFond'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
   drawPoints();
-  L.marker([MAISON.lat, MAISON.lon], { icon: L.divIcon({ className: '', html: '<div class="home">🏠</div>', iconSize: [24, 24], iconAnchor: [12, 12] }), zIndexOffset: 900, keyboard: false })
+  const homeMarker = L.marker([MAISON.lat, MAISON.lon], { icon: L.divIcon({ className: '', html: '<div class="home">🏠</div>', iconSize: [24, 24], iconAnchor: [12, 12] }), zIndexOffset: 900, keyboard: false })
     .bindTooltip(esc(MAISON.nom), { permanent: true, direction: 'right', offset: [10, 0], className: 'pinlabel' })
     .on('click', () => follow({ nom: MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }))
     .addTo(map);
 
+  // ---------------------------------------------------------------- maison : choix du lieu
+  async function villeDe(lat, lon) {
+    try { const j = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=12&accept-language=fr&lat=${lat}&lon=${lon}`)).json();
+      const a = j.address || {}; return a.village || a.town || a.city || a.municipality || ''; } catch { return ''; }
+  }
+  async function setMaison(lat, lon, ville) {
+    const nom = ($('homeName') && $('homeName').value.trim()) || MAISON.nom || 'Maison';
+    MAISON = { nom, ville: ville || await villeDe(lat, lon) || nom, lat: +lat.toFixed(5), lon: +lon.toFixed(5) };
+    try { localStorage.setItem('radar-pluie-maison', JSON.stringify(MAISON)); } catch {}
+    homeMarker.setLatLng([MAISON.lat, MAISON.lon]).setTooltipContent(esc(MAISON.nom));
+    $('sheetHome').classList.remove('open'); closeAdd && closeAdd();
+    dayIdx = -1; setLieu({ nom: MAISON.ville, lat: MAISON.lat, lon: MAISON.lon }, true);
+    relLoaded = 0; if (page === 'rel') loadReleves();
+    toast('🏠 Maison enregistrée : ' + MAISON.ville);
+  }
+  function openHome() {
+    $('homeName').value = MAISON.nom;
+    $('homeNow').textContent = `${MAISON.ville || ''} (${MAISON.lat.toFixed(4)}, ${MAISON.lon.toFixed(4)})`;
+    $('homeUseLieu').textContent = '🔎 Le lieu affiché : ' + lieu.nom;
+    $('homeUseLieu').style.display = (Math.abs(lieu.lat - MAISON.lat) + Math.abs(lieu.lon - MAISON.lon) > 1e-4) ? '' : 'none';
+    $('sheetHome').classList.add('open');
+  }
+  $('homeGps').onclick = () => {
+    if (!navigator.geolocation) return toast('Localisation indisponible');
+    toast('Recherche de ta position…', 3000);
+    navigator.geolocation.getCurrentPosition((p) => setMaison(p.coords.latitude, p.coords.longitude),
+      () => toast('Localisation refusée ou introuvable', 4000), { enableHighAccuracy: true, timeout: 20000 });
+  };
+  $('homeUseLieu').onclick = () => setMaison(lieu.lat, lieu.lon, lieu.nom);
+  $('homeMap').onclick = () => { $('sheetHome').classList.remove('open'); map.setView([MAISON.lat, MAISON.lon], 13); go('radar'); toast('Fais un appui long sur ta maison, puis « Mettre ma maison ici »', 6000); };
+  $('homeWeather').onclick = () => { $('sheetHome').classList.remove('open'); dayIdx = -1; setLieu({ nom: MAISON.ville || MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }, true); go('prev'); };
+  $('homeClose').onclick = () => $('sheetHome').classList.remove('open');
+  $('sheetHome').addEventListener('click', (e) => { if (e.target.id === 'sheetHome') $('sheetHome').classList.remove('open'); });
+  $('addHome').onclick = () => { if (pendingLatLng) setMaison(pendingLatLng.lat, pendingLatLng.lng); };
+
   // ================================================================ lieu (prévisions, relevés, « pluie ici »)
-  const LIEU_DEFAUT = { nom: 'Marcilly-sur-Vienne', lat: 47.0435, lon: 0.5393 };
+  const LIEU_DEFAUT = { nom: MAISON.ville || 'Marcilly-sur-Vienne', lat: MAISON.lat, lon: MAISON.lon };
   let lieu = LIEU_DEFAUT;
   try { const saved = JSON.parse(localStorage.getItem('radar-pluie-lieu') || 'null'); if (saved && saved.lat) lieu = saved; } catch {}
   function setLieu(l, save) {
@@ -599,7 +651,8 @@ const POINTS = [
   }
   fetch('config.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(c => {
     let saved = null; try { saved = localStorage.getItem('radar-pluie-lieu'); } catch {}
-    if (c && c.lieu && !saved) setLieu(c.lieu, false);
+    let home = null; try { home = localStorage.getItem('radar-pluie-maison'); } catch {}
+    if (c && c.lieu && !saved && !home) setLieu(c.lieu, false);
   }).catch(() => {});
 
   // ================================================================ navigation
@@ -742,6 +795,7 @@ const POINTS = [
       setLieu({ nom: j[0].display_name.split(',')[0], lat: +j[0].lat, lon: +j[0].lon }, true);
     } catch { toast('Recherche indisponible'); }
   };
+  $('lieuHome').onclick = () => openHome();
   $('lieuGps').onclick = () => {
     if (!navigator.geolocation) return toast('Localisation indisponible');
     toast('Recherche de ta position…', 2000);
@@ -818,14 +872,17 @@ const POINTS = [
       return;
     }
     if (!rel.stations || !rel.stations.length) { box.innerHTML = '<div class="note">Aucune station Météo-France avec pluviomètre trouvée près de ' + esc(rel.lieu.nom) + '.</div>'; return; }
-    const all = rel.stations;
+    const kmFrom = (x) => { const r = Math.PI / 180, dl = (x.lat - MAISON.lat) * r, dn = (x.lon - MAISON.lon) * r;
+      const a = Math.sin(dl / 2) ** 2 + Math.cos(MAISON.lat * r) * Math.cos(x.lat * r) * Math.sin(dn / 2) ** 2; return 12742 * Math.asin(Math.sqrt(a)); };
+    const all = rel.stations.map(x => ({ ...x, km: Math.round(kmFrom(x) * 10) / 10 })).sort((a, b) => a.km - b.km);
     let chosen = null; try { chosen = JSON.parse(localStorage.getItem('radar-pluie-stations') || 'null'); } catch {}
     let sts = chosen && chosen.length ? all.filter(x => chosen.includes(x.id)) : [];
     if (!sts.length) sts = all.slice(0, 5);
     relStation = Math.min(relStation, sts.length - 1);
     const lastKeys = sts.map(lastKeyOf).filter(Boolean).sort();
     const ref = lastKeys.length ? hdate(lastKeys[lastKeys.length - 1]) : new Date();
-    const head = `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>
+    const loin = all.length && all[0].km > 25 ? `<div class="note">Ta maison est loin des stations suivies par le robot (autour de ${esc(rel.lieu.nom)}). Demande-moi de déplacer la zone des relevés.</div>` : '';
+    const head = loin + `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>
       <button class="choose" id="btnChoose">⚙️ Choisir mes stations (${sts.length}/${all.length})</button>`;
 
     const night = `<div class="sec"><div class="sech">Analyse de la nuit (22h00 – 6h00)</div>${sts.map(st => {
