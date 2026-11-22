@@ -76,6 +76,9 @@
   .leaflet-tooltip.pinlabel { background:rgba(255,255,255,.92); color:#111; border:0; border-radius:6px; padding:1px 6px; font-weight:700; font-size:12px; box-shadow:0 1px 3px rgba(0,0,0,.25); }
   .leaflet-tooltip.pinlabel::before { display:none; }
   .leaflet-control-attribution { font-size:9px; }
+  body.dark #map { background:#222; }
+  .top .iconbtn { width:42px; height:42px; }
+  @media (max-width:380px) { .top { gap:6px; } .top .iconbtn { width:38px; height:38px; font-size:17px; } }
   .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + 200px); }
 
   .sheet { position:fixed; z-index:1200; inset:0; background:rgba(0,0,0,.35); display:none; align-items:flex-end; justify-content:center; }
@@ -97,6 +100,7 @@
 
 <div class="top">
   <div class="card title"><b>🌧️ Radar Pluie</b><small id="place">Chargement…</small></div>
+  <button class="card iconbtn" id="btnFond" title="Fond de carte">🗺️</button>
   <button class="card iconbtn" id="btnFav" title="Mes points">⭐</button>
   <button class="card iconbtn" id="btnSearch" title="Chercher une ville">🔍</button>
   <button class="card iconbtn" id="btnLocate" title="Me localiser">📍</button>
@@ -138,6 +142,10 @@
     <button type="submit" class="btn primary">Enregistrer</button>
   </div>
 </form></div>
+<div class="sheet" id="sheetFond"><div class="card">
+  <h3>Fond de carte</h3><ul class="favlist" id="fondList"></ul>
+  <div class="actions"><button type="button" class="btn" id="fondClose">Fermer</button></div>
+</div></div>
 <div class="sheet" id="sheetFav"><div class="card">
   <h3>Mes points</h3><ul class="favlist" id="favList"></ul>
   <p style="color:var(--muted);font-size:12px;margin:10px 0 0">Appui long sur la carte pour ajouter un point.</p>
@@ -163,13 +171,30 @@ const POINTS = [
 
   const map = L.map('map', { zoomControl: false, maxZoom: 13, minZoom: 5 })
     .setView(VUE_DEPART ? [VUE_DEPART.lat, VUE_DEPART.lon] : [46.6, 2.4], VUE_DEPART ? VUE_DEPART.zoom : 6);
-  const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
-  L.tileLayer(ESRI + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 16,
-    attribution: 'Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)'
-  }).addTo(map);
+  // ---------------------------------------------------------------- fonds de carte (bouton 🗺️)
+  const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+  const ESRI_ATTR = 'Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap';
+  const MF_ATTR = ' · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)';
+  const FONDS = {
+    gris:      { nom: 'Gris clair', emoji: '⬜', base: ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
+    sombre:    { nom: 'Sombre', emoji: '⬛', base: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
+    plan:      { nom: 'Plan (routes)', emoji: '🛣️', base: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France', max: 19, sub: 'abc' },
+    relief:    { nom: 'Relief', emoji: '⛰️', base: ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 19 },
+    satellite: { nom: 'Satellite', emoji: '🛰️', base: ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', attr: 'Imagerie &copy; Esri, Maxar, Earthstar Geographics', max: 19 },
+  };
   map.createPane('labels'); map.getPane('labels').style.zIndex = 650; map.getPane('labels').style.pointerEvents = 'none';
-  L.tileLayer(ESRI + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, pane: 'labels' }).addTo(map);
+  let baseLayer = null, labelLayer = null;
+  function setFond(key) {
+    const f = FONDS[key] || FONDS.gris;
+    if (baseLayer) map.removeLayer(baseLayer);
+    if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
+    baseLayer = L.tileLayer(f.base, { maxZoom: f.max, subdomains: f.sub || 'abc', attribution: f.attr + MF_ATTR }).addTo(map);
+    if (f.labels) labelLayer = L.tileLayer(f.labels, { maxZoom: f.max, pane: 'labels' }).addTo(map);
+    document.body.classList.toggle('dark', key === 'sombre' || key === 'satellite');
+    try { localStorage.setItem('radar-pluie-fond', key); } catch {}
+  }
+  let fondInitial = 'gris'; try { fondInitial = localStorage.getItem('radar-pluie-fond') || 'gris'; } catch {}
+  setFond(fondInitial);
 
   let toastTimer;
   function toast(msg, ms = 3500) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
@@ -409,7 +434,14 @@ const POINTS = [
     $('sheetFav').classList.add('open');
   };
   $('favClose').onclick = () => $('sheetFav').classList.remove('open');
-  ['sheetAdd', 'sheetFav'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
+  $('btnFond').onclick = () => {
+    let cur = 'gris'; try { cur = localStorage.getItem('radar-pluie-fond') || 'gris'; } catch {}
+    $('fondList').innerHTML = Object.entries(FONDS).map(([k, f]) => `<li data-k="${k}"><span>${f.emoji}</span><b>${f.nom}</b><span class="muted">${k === cur ? '✓ actuel' : ''}</span></li>`).join('');
+    $('fondList').querySelectorAll('li').forEach(li => li.onclick = () => { setFond(li.dataset.k); $('sheetFond').classList.remove('open'); });
+    $('sheetFond').classList.add('open');
+  };
+  $('fondClose').onclick = () => $('sheetFond').classList.remove('open');
+  ['sheetAdd', 'sheetFav', 'sheetFond'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
   drawPoints();
 
   // ---------------------------------------------------------------- démarrage
