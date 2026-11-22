@@ -1,5 +1,7 @@
 # Radar Pluie
 
+**Adresse de l'appli : https://alandoreau.github.io/radar-pluie/**
+
 Appli web de radar de pluie en temps réel, avec les données de Météo-France :
 
 - **Radar** : mosaïque « lame d'eau » 500 m de Météo-France, une image toutes les 10 minutes sur les 2 dernières heures.
