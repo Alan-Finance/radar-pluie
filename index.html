@@ -239,6 +239,25 @@
   .bc3 { grid-template-columns:13px auto; column-gap:5px; row-gap:1px; font-size:12px; }
   .bc3 .gauge { width:10px; height:16px; } .bc3 .drop { font-size:11px; } .bc3 small { font-size:11px; }
   .btotal { margin:8px 0 2px; font-size:13px; }
+
+  /* ===== panneau du radar compact ===== */
+  #page-radar .bottom { padding:6px 9px 7px; border-radius:12px; }
+  .stamp { align-items:center; gap:6px; }
+  .stamp .kind { font-size:10px; padding:1px 6px; }
+  .stamp .clock { font-size:15px; }
+  .stamp .rel { font-size:10.5px; margin-left:0; }
+  .controls { display:flex; gap:4px; margin:0 0 0 auto; }
+  .controls button { width:32px; height:28px; font-size:14px; border-radius:7px; padding:0; }
+  .controls button.now { width:40px; font-size:10px; }
+  .track { margin:5px 0 1px; height:24px; }
+  .strip { height:8px; }
+  .bar { top:12px; height:5px; }
+  .nowmark { top:-1px; height:27px; }
+  .cursor { top:8px; width:13px; height:13px; margin-left:-6.5px; border-width:2.5px; }
+  #slider { top:4px; height:22px; }
+  .hours { height:12px; font-size:9.5px; }
+  .here { font-size:11px; margin-top:1px; min-height:13px; }
+  #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 120px); }
 </style>
 </head>
 <body>
@@ -283,6 +302,12 @@
     <span class="kind radar" id="kind">Mesure</span>
     <span class="clock" id="clock">--:--</span>
     <span class="rel" id="rel"></span>
+    <div class="controls">
+      <button id="prev" aria-label="Précédent">‹</button>
+      <button id="play" aria-label="Lecture">▶</button>
+      <button id="next" aria-label="Suivant">›</button>
+      <button id="now" class="now">NOW</button>
+    </div>
   </div>
   <div class="track">
     <div class="strip" id="strip"></div>
@@ -293,12 +318,6 @@
   </div>
   <div class="hours" id="hours"></div>
   <div class="here" id="here"></div>
-  <div class="controls">
-    <button id="play" aria-label="Lecture">▶</button>
-    <button id="prev" aria-label="Précédent">‹</button>
-    <button id="now" class="now">NOW</button>
-    <button id="next" aria-label="Suivant">›</button>
-  </div>
 </div>
 </section>
 
