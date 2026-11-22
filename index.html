@@ -1057,7 +1057,9 @@ const POINTS = [
     let sts = chosen && chosen.length ? all.filter(x => chosen.includes(x.id)) : [];
     if (!sts.length) sts = all.slice(0, 5);
     relStation = Math.min(relStation, sts.length - 1);
-    const lastKeys = sts.map(lastKeyOf).filter(Boolean).sort();
+    // « Dernier relevé » = dernière heure mesurée par les pluviomètres (comme la pastille de Prévisions),
+    // pas l'heure en cours de la station virtuelle radar qui n'est pas encore terminée
+    const lastKeys = (rel.stations || []).map(lastKeyOf).filter(Boolean).sort();
     const ref = lastKeys.length ? hdate(lastKeys[lastKeys.length - 1]) : new Date();
     const loin = all.length && all[0].km > 25 ? `<div class="note">Ta maison est loin des stations suivies par le robot (autour de ${esc(rel.lieu.nom)}). Demande-moi de déplacer la zone des relevés.</div>` : '';
     const head = loin + `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>
