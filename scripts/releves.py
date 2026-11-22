@@ -219,7 +219,7 @@ QUOT_EVERY_HOURS = 3
 
 def _quot_urls(log) -> dict[str, str]:
     """Département -> adresse du fichier quotidien « RR-T-Vent » de la période en cours (data.gouv.fr)."""
-    urls: dict[str, tuple[str, str]] = {}
+    urls: dict[str, tuple[tuple, str]] = {}
     page = 1
     while page <= 10:
         r = requests.get(DATAGOUV_QUOT, params={"page": page, "page_size": 200, "type": "main"}, timeout=60)
@@ -230,9 +230,12 @@ def _quot_urls(log) -> dict[str, str]:
             if "RR-T-Vent" not in title or "departement_" not in title or "periode_" not in title:
                 continue
             dep = title.split("departement_")[1].split("_")[0]
-            period = title.split("periode_")[1].split("_")[0]
-            if dep not in urls or period > urls[dep][0]:
-                urls[dep] = (period, res.get("url", ""))
+            url = res.get("url", "")
+            # le fichier « latest » (année en cours, mis à jour chaque jour), sinon la période la plus récente
+            years = [int(y) for y in __import__("re").findall(r"(\d{4})", title.split("periode_")[1])] or [0]
+            rank = (1 if "latest" in url else 0, max(years) if "avant" not in title else 0)
+            if dep not in urls or rank > urls[dep][0]:
+                urls[dep] = (rank, url)
         if not data.get("next_page"):
             break
         page += 1
