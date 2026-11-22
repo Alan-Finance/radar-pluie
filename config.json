@@ -5,5 +5,10 @@
     "lon": 0.5393
   },
   "rayon_stations_km": 50,
-  "nb_stations": 40
+  "nb_stations": 40,
+  "departements": [
+    "37",
+    "86"
+  ],
+  "rayon_quotidien_km": 15
 }

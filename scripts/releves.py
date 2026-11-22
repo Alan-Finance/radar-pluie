@@ -213,6 +213,87 @@ def update_virtuelle(config: dict, prev: dict, new_slots: dict, log) -> dict:
             "virtuelle": True, "slots": slots, "heures": heures, "jours": jours}
 
 
+DATAGOUV_QUOT = "https://www.data.gouv.fr/api/2/datasets/6569b51ae64326786e4e8e1a/resources/"
+QUOT_EVERY_HOURS = 3
+
+
+def _quot_urls(log) -> dict[str, str]:
+    """Département -> adresse du fichier quotidien « RR-T-Vent » de la période en cours (data.gouv.fr)."""
+    urls: dict[str, tuple[str, str]] = {}
+    page = 1
+    while page <= 10:
+        r = requests.get(DATAGOUV_QUOT, params={"page": page, "page_size": 200, "type": "main"}, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        for res in data.get("data", []):
+            title = res.get("title", "")
+            if "RR-T-Vent" not in title or "departement_" not in title or "periode_" not in title:
+                continue
+            dep = title.split("departement_")[1].split("_")[0]
+            period = title.split("periode_")[1].split("_")[0]
+            if dep not in urls or period > urls[dep][0]:
+                urls[dep] = (period, res.get("url", ""))
+        if not data.get("next_page"):
+            break
+        page += 1
+    log(f"Pluviomètres quotidiens : {len(urls)} fichiers départementaux trouvés sur data.gouv.fr")
+    return {d: u for d, (_, u) in urls.items()}
+
+
+def update_quotidiennes(config: dict, prev: dict, log) -> dict:
+    """Pluviomètres Météo-France à relevé quotidien (dont bénévoles), près du lieu : cumul par jour, publié le lendemain."""
+    import gzip
+
+    now = datetime.now(UTC)
+    deps = config.get("departements", [])
+    radius = float(config.get("rayon_quotidien_km", 15))
+    if prev.get("updated") and prev.get("rayon_km") == radius and prev.get("deps") == deps:
+        age = (now - datetime.strptime(prev["updated"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)).total_seconds()
+        if age < QUOT_EVERY_HOURS * 3600:
+            return prev
+    lieu = config["lieu"]
+    day_cutoff = (now.astimezone(PARIS) - timedelta(days=KEEP_DAYS)).strftime("%Y%m%d")
+    try:
+        urls = _quot_urls(log)
+    except Exception as exc:
+        log(f"Pluviomètres quotidiens : liste illisible ({type(exc).__name__})")
+        return prev
+    stations: dict[str, dict] = {}
+    for dep in deps:
+        url = urls.get(dep)
+        if not url:
+            log(f"  département {dep} : pas de fichier")
+            continue
+        try:
+            raw = gzip.decompress(requests.get(url, timeout=120).content).decode("utf-8", "replace")
+        except Exception as exc:
+            log(f"  département {dep} : téléchargement en échec ({type(exc).__name__})")
+            continue
+        for row in csv.DictReader(io.StringIO(raw), delimiter=";"):
+            try:
+                lat = float(row["LAT"].replace(",", ".")); lon = float(row["LON"].replace(",", "."))
+            except (KeyError, ValueError):
+                continue
+            d = distance_km(lieu["lat"], lieu["lon"], lat, lon)
+            if d > radius:
+                continue
+            date = (row.get("AAAAMMJJ") or "").strip()
+            rr = (row.get("RR") or "").strip().replace(",", ".")
+            if date < day_cutoff or not rr:
+                continue
+            sid = row["NUM_POSTE"].strip()
+            st = stations.setdefault(sid, {"id": sid, "nom": row.get("NOM_USUEL", sid).strip().title(), "lat": lat, "lon": lon,
+                                           "km": round(d, 1), "quotidien": True, "heures": {}, "jours": {}})
+            st["jours"][f"{date[:4]}-{date[4:6]}-{date[6:8]}"] = {"mm": round(float(rr), 1), "n": 24}
+        log(f"  département {dep} : {sum(1 for s in stations.values())} pluviomètre(s) à moins de {radius:.0f} km jusqu'ici")
+    useful = sorted((s for s in stations.values() if s["jours"]), key=lambda s: s["km"])
+    for s in useful:
+        s["jours"] = dict(sorted(s["jours"].items()))
+        s["dernier_jour"] = max(s["jours"])
+    log("Pluviomètres quotidiens : " + (", ".join(f"{s['nom']} ({s['km']} km, dernier relevé {s['dernier_jour']})" for s in useful) or "aucun"))
+    return {"updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "rayon_km": radius, "deps": deps, "stations": useful}
+
+
 def load_json(url: str) -> dict:
     try:
         r = requests.get(url, timeout=30)
@@ -229,6 +310,11 @@ def run(session: requests.Session, out_dir: Path, pages_url: str, log, radar_poi
         return
     previous = load_json(f"{pages_url}/data/releves.json") if pages_url else {}
     result = update_releves(session, config, previous, log)
+    try:
+        result["quotidiennes"] = update_quotidiennes(config, previous.get("quotidiennes", {}), log)
+    except Exception as exc:
+        log(f"Pluviomètres quotidiens en échec : {type(exc).__name__}: {exc}")
+        result["quotidiennes"] = previous.get("quotidiennes", {})
     result["virtuelle"] = update_virtuelle(config, previous.get("virtuelle", {}) if previous.get("lieu", {}).get("nom") == config["lieu"]["nom"] else {}, radar_point or {}, log)
     (out_dir / "data").mkdir(parents=True, exist_ok=True)
     (out_dir / "data" / "releves.json").write_text(json.dumps(result, ensure_ascii=False))
