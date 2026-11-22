@@ -117,7 +117,8 @@
   .mini #minimap { position:absolute; inset:0; background:#dfe6ec; }
   .mini .tag { position:absolute; z-index:500; left:8px; bottom:8px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px 8px; font-size:12px; font-weight:600; }
   .mini .grow { position:absolute; z-index:500; right:8px; top:8px; background:#fff; border-radius:6px; width:34px; height:34px; display:grid; place-items:center; font-size:18px; box-shadow:0 1px 3px rgba(0,0,0,.2); }
-  .minihere { margin:8px 2px 0; font-size:13px; color:var(--muted); }
+  .minihere { margin:2px 2px 0; font-size:14px; color:var(--muted); cursor:pointer; }
+  .minihere b::before { content:'📡 '; }
   .minihere b { color:var(--text); }
   .daytabs { display:flex; overflow-x:auto; gap:0; margin:14px -12px 10px; padding:0 12px; scrollbar-width:none; border-bottom:1px solid var(--line); }
   .daytabs::-webkit-scrollbar { display:none; }
@@ -188,8 +189,7 @@
       <form id="lieuForm"><input id="lieuInput" type="search" placeholder="Ville, village…" autocomplete="off" enterkeyhint="search"></form>
       <button class="gps" id="lieuGps" title="Utiliser ma position">📍</button>
     </div>
-    <div class="mini" id="miniBox"><div id="minimap"></div><div class="tag" id="miniTag">Radar</div><div class="grow">⤢</div></div>
-    <div class="minihere" id="miniHere"></div>
+    <div class="minihere" id="miniHere" title="Voir le radar"></div>
     <div class="daytabs" id="daytabs"></div>
     <div id="prevContent"><p class="center muted">Chargement des prévisions…</p></div>
     <p class="small muted center">Prévisions : Open-Meteo (modèles Météo-France, ECMWF…) · Radar : Météo-France</p>
@@ -603,21 +603,9 @@ const POINTS = [
   $('btnBack').onclick = () => go(lastPage);
 
   // ================================================================ mini-carte radar (Prévisions)
-  const mini = L.map('minimap', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
-    doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, tap: false }).setView([lieu.lat, lieu.lon], 8);
-  L.tileLayer(ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(mini);
-  mini.createPane('labels'); mini.getPane('labels').style.zIndex = 650; mini.getPane('labels').style.pointerEvents = 'none';
-  L.tileLayer(ESRI + 'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, pane: 'labels' }).addTo(mini);
-  const miniMarker = L.marker([lieu.lat, lieu.lon], { icon: L.divIcon({ className: '', html: '<div class="pin"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(mini);
-  let miniOverlay = null;
-  function updateMini() {
-    if (!meta || !frames.length) return;
-    const f = frames[nowIdx];
-    if (miniOverlay) mini.removeLayer(miniOverlay);
-    miniOverlay = L.imageOverlay(f.file, meta.bounds, { opacity: .85, className: 'rain', interactive: false }).addTo(mini);
-    $('miniTag').textContent = '📡 Radar · ' + fmtTime(new Date(f.time));
-  }
-  $('miniBox').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); show(nowIdx); };
+  const mini = null, miniMarker = null;
+  function updateMini() {}
+  $('miniHere').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); show(nowIdx); };
 
   // ================================================================ prévisions 10 jours (Open-Meteo)
   const WMO = {
