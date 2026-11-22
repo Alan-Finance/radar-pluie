@@ -96,7 +96,8 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
             log(f"  {key} : {type(exc).__name__}")
             continue
         if r.status_code in (401, 403):
-            log(f"  {key} : accès refusé (HTTP {r.status_code}) — abonnement « Paquet Observations » manquant ?")
+            body = r.text[:300].replace(session.headers.get("apikey", "") or "\x00", "***")
+            log(f"  {key} : accès refusé (HTTP {r.status_code}) — réponse : {body}")
             status = "acces_refuse"
             break
         if r.status_code == 404:
