@@ -247,7 +247,7 @@ def update_quotidiennes(config: dict, prev: dict, log) -> dict:
     now = datetime.now(UTC)
     deps = config.get("departements", [])
     radius = float(config.get("rayon_quotidien_km", 15))
-    if prev.get("updated") and prev.get("rayon_km") == radius and prev.get("deps") == deps:
+    if prev.get("updated") and prev.get("rayon_km") == radius and prev.get("deps") == deps and prev.get("stations") and prev.get("v") == 2:
         age = (now - datetime.strptime(prev["updated"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)).total_seconds()
         if age < QUOT_EVERY_HOURS * 3600:
             return prev
@@ -298,7 +298,7 @@ def update_quotidiennes(config: dict, prev: dict, log) -> dict:
         s["jours"] = dict(sorted(s["jours"].items()))
         s["dernier_jour"] = max(s["jours"])
     log("Pluviomètres quotidiens : " + (", ".join(f"{s['nom']} ({s['km']} km, dernier relevé {s['dernier_jour']})" for s in useful) or "aucun"))
-    return {"updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "rayon_km": radius, "deps": deps, "stations": useful}
+    return {"v": 2, "updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "rayon_km": radius, "deps": deps, "stations": useful}
 
 
 def load_json(url: str) -> dict:

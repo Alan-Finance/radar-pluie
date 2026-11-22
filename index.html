@@ -228,7 +228,6 @@
       <button class="gps" id="lieuHome" title="Ma maison">🏠</button>
     </div>
     <div class="maj" id="maj"></div>
-    <div class="majinfo" id="majInfo"></div>
     <div class="minihere" id="miniHere" title="Voir le radar"></div>
     <div class="daytabs" id="daytabs"></div>
     <div id="prevContent"><p class="center muted">Chargement des prévisions…</p></div>
@@ -722,7 +721,7 @@ const POINTS = [
     page = p;
     document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-    if (p === 'radar') { setTimeout(() => { map.invalidateSize(); }, 30); }
+    if (p === 'radar') { setTimeout(() => { map.invalidateSize(); if (frames.length) { show(0); play(); } }, 30); }
     else { pause(); }
     if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
     if (p === 'rel') loadReleves();
@@ -733,7 +732,7 @@ const POINTS = [
   // ================================================================ mini-carte radar (Prévisions)
   const mini = null, miniMarker = null;
   function updateMini() {}
-  $('miniHere').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); show(nowIdx); };
+  $('miniHere').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); };
 
   // ================================================================ prévisions 10 jours (Open-Meteo)
   const WMO = {
@@ -831,10 +830,7 @@ const POINTS = [
     const pill = last ? `Dernier relevé – ${hhmm(hdate(last))}` : 'Dernier relevé – …';
     $('maj').innerHTML = `<button class="pill majpill" id="majBtn" title="Actualiser">${pill} <span class="rf">⟳</span></button>`;
     $('majBtn').onclick = () => { relLoaded = 0; loadReleves(); loadFrames(false); loadForecast(); toast('Actualisation…', 1500); };
-    const info = [];
-    if (fcMeta && fcMeta.last_run_initialisation_time) info.push(`prévision Météo-France de ${hhmm(new Date(fcMeta.last_run_initialisation_time * 1000))}`);
-    if (frames.length) info.push(`radar de ${hhmm(new Date(frames[nowIdx].time))}`);
-    $('majInfo').textContent = info.join(' · ');
+    // (pas de ligne d'information sous la pastille)
   }
 
   function renderForecast() {
