@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5f99">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Radar Pluie">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Radar Pluie</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --accent:#1f6fb8; --text:#16212e; --muted:#5f6d7d; --panel:rgba(255,255,255,.94); --line:rgba(20,40,60,.12); --future:#1f6fb8; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; color:var(--text); font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  #map { position:fixed; inset:0; background:#dfe6ec; }
+  .rain { image-rendering:auto; transition:opacity .12s linear; }
+
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.12);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .top { position:fixed; z-index:1000; left:10px; right:10px; top:calc(env(safe-area-inset-top) + 10px); display:flex; gap:8px; align-items:center; }
+  .title { flex:1; min-width:0; padding:8px 12px; }
+  .title b { font-size:15px; }
+  .title small { display:block; color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .iconbtn { width:44px; height:44px; display:grid; place-items:center; cursor:pointer; font-size:19px; padding:0; color:var(--text); }
+
+  .search { position:fixed; z-index:1000; left:10px; right:10px; display:none; top:calc(env(safe-area-inset-top) + 64px); padding:6px; }
+  .search.open { display:flex; gap:6px; }
+  .search input { flex:1; border:0; background:transparent; font-size:16px; padding:8px 10px; outline:none; color:var(--text); }
+  .search button { background:var(--accent); color:#fff; border:0; border-radius:10px; padding:0 14px; font-weight:600; }
+
+  .legendbtn { position:fixed; z-index:1000; left:10px; top:calc(env(safe-area-inset-top) + 64px); padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+  .legend { position:fixed; z-index:1000; left:10px; top:calc(env(safe-area-inset-top) + 100px); padding:8px 10px; display:none; font-size:12px; }
+  .legend.open { display:block; }
+  .legend div { display:flex; align-items:center; gap:8px; margin:2px 0; }
+  .legend i { width:22px; height:12px; border-radius:3px; display:inline-block; }
+
+  .bottom { position:fixed; z-index:1000; left:10px; right:10px; bottom:calc(env(safe-area-inset-bottom) + 10px); padding:10px 12px 12px; }
+  .stamp { display:flex; align-items:baseline; gap:8px; }
+  .stamp .kind { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px; }
+  .kind.radar { background:#e8edf2; color:#3d4b5a; }
+  .kind.prevision { background:#dcebfa; color:var(--future); }
+  .stamp .clock { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stamp .rel { color:var(--muted); font-size:12px; margin-left:auto; text-align:right; }
+
+  .track { position:relative; margin:10px 0 4px; height:34px; }
+  .strip { position:absolute; left:0; right:0; top:0; height:12px; display:flex; gap:1px; border-radius:4px; overflow:hidden; }
+  .strip span { flex:1; background:#eef1f4; }
+  .bar { position:absolute; left:0; right:0; top:18px; height:6px; border-radius:3px; background:#cfd7df; overflow:hidden; }
+  .bar .fut { position:absolute; top:0; bottom:0; right:0; background:var(--future); opacity:.85; }
+  .nowmark { position:absolute; top:-2px; width:2px; height:38px; background:#e0322f; border-radius:1px; }
+  .cursor { position:absolute; top:14px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:#fff; border:3px solid var(--text); box-shadow:0 1px 3px rgba(0,0,0,.3); pointer-events:none; }
+  #slider { position:absolute; left:0; right:0; top:8px; width:100%; height:28px; margin:0; opacity:0; cursor:pointer; }
+  .hours { position:relative; height:14px; font-size:11px; color:var(--muted); }
+  .hours span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
+  .here { font-size:12px; color:var(--muted); margin-top:2px; min-height:16px; }
+  .here b { color:var(--text); }
+
+  .controls { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; }
+  .controls button { height:42px; border-radius:10px; border:1px solid var(--line); background:#fff; font-size:17px; cursor:pointer; color:var(--text); }
+  .controls button.now { font-size:12px; font-weight:700; }
+  .controls button:active { transform:scale(.97); }
+
+  .toast { position:fixed; z-index:1100; left:50%; transform:translateX(-50%); top:calc(env(safe-area-inset-top) + 64px);
+    padding:10px 14px; font-size:13px; display:none; max-width:calc(100% - 24px); }
+  .toast.show { display:block; }
+
+  .me { width:18px; height:18px; border-radius:50%; background:#1f8ef1; border:3px solid #fff; box-shadow:0 0 0 0 rgba(31,142,241,.6); animation:pulse 2s infinite; }
+  @keyframes pulse { 70% { box-shadow:0 0 0 14px rgba(31,142,241,0); } 100% { box-shadow:0 0 0 0 rgba(31,142,241,0); } }
+  .pin { width:12px; height:12px; border-radius:50%; background:#e0322f; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.45); }
+  .pin.perso { background:#f2b400; }
+  .leaflet-tooltip.pinlabel { background:rgba(255,255,255,.92); color:#111; border:0; border-radius:6px; padding:1px 6px; font-weight:700; font-size:12px; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .leaflet-tooltip.pinlabel::before { display:none; }
+  .leaflet-control-attribution { font-size:9px; }
+  .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + 200px); }
+
+  .sheet { position:fixed; z-index:1200; inset:0; background:rgba(0,0,0,.35); display:none; align-items:flex-end; justify-content:center; }
+  .sheet.open { display:flex; }
+  .sheet .card { width:100%; max-width:480px; margin:10px; padding:16px; margin-bottom:calc(env(safe-area-inset-bottom) + 10px); }
+  .sheet h3 { margin:0 0 10px; font-size:16px; }
+  .sheet input { width:100%; font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid var(--line); outline:none; }
+  .actions { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
+  .btn { border:0; border-radius:10px; padding:10px 14px; font-weight:600; cursor:pointer; font-size:14px; background:#eef1f4; color:var(--text); }
+  .btn.primary { background:var(--accent); color:#fff; }
+  .btn.danger { background:#e0322f; color:#fff; }
+  .favlist { list-style:none; margin:0; padding:0; max-height:50vh; overflow:auto; }
+  .favlist li { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .favlist .muted { color:var(--muted); font-size:12px; margin-left:auto; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <div class="card title"><b>🌧️ Radar Pluie</b><small id="place">Chargement…</small></div>
+  <button class="card iconbtn" id="btnFav" title="Mes points">⭐</button>
+  <button class="card iconbtn" id="btnSearch" title="Chercher une ville">🔍</button>
+  <button class="card iconbtn" id="btnLocate" title="Me localiser">📍</button>
+</div>
+<form class="card search" id="search"><input id="q" type="search" placeholder="Ville ou adresse…" autocomplete="off"><button type="submit">OK</button></form>
+<div class="card legendbtn" id="btnLegend">LÉGENDE</div>
+<div class="card legend" id="legend"></div>
+<div class="card toast" id="toast"></div>
+
+<div class="card bottom">
+  <div class="stamp">
+    <span class="kind radar" id="kind">Mesure</span>
+    <span class="clock" id="clock">--:--</span>
+    <span class="rel" id="rel"></span>
+  </div>
+  <div class="track">
+    <div class="strip" id="strip"></div>
+    <div class="bar"><div class="fut" id="fut"></div></div>
+    <div class="nowmark" id="nowmark"></div>
+    <div class="cursor" id="cursor"></div>
+    <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Heure">
+  </div>
+  <div class="hours" id="hours"></div>
+  <div class="here" id="here"></div>
+  <div class="controls">
+    <button id="play" aria-label="Lecture">▶</button>
+    <button id="prev" aria-label="Précédent">‹</button>
+    <button id="now" class="now">NOW</button>
+    <button id="next" aria-label="Suivant">›</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheetAdd"><form class="card" id="formAdd">
+  <h3 id="addTitle">Nouveau point</h3>
+  <input id="addName" placeholder="Nom (ex. Maison, Champ du haut…)" maxlength="40" autocomplete="off">
+  <div class="actions">
+    <button type="button" class="btn danger" id="addDelete" style="display:none;margin-right:auto">Supprimer</button>
+    <button type="button" class="btn" id="addCancel">Annuler</button>
+    <button type="submit" class="btn primary">Enregistrer</button>
+  </div>
+</form></div>
+<div class="sheet" id="sheetFav"><div class="card">
+  <h3>Mes points</h3><ul class="favlist" id="favList"></ul>
+  <p style="color:var(--muted);font-size:12px;margin:10px 0 0">Appui long sur la carte pour ajouter un point.</p>
+  <div class="actions"><button type="button" class="btn" id="favClose">Fermer</button></div>
+</div></div>
+
+<script>
+/* ================== RÉGLAGES PERSO (à modifier) ==================
+   VUE_DEPART : où la carte s'ouvre et à quel zoom (6 = France, 9 = département, 11 = ville).
+                Mets null pour démarrer sur ta position GPS.
+   POINTS     : tes points fixes, affichés avec leur nom sur la carte.
+   Tu peux aussi ajouter des points depuis l'appli : appui long sur la carte. */
+const VUE_DEPART = { lat: 47.10, lon: 0.60, zoom: 9 };
+const POINTS = [
+  { nom: 'Tours',         lat: 47.3941, lon: 0.6848 },
+  { nom: 'Châtellerault', lat: 46.8178, lon: 0.5458 },
+];
+/* ================================================================ */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const FRAME_MS = 550, REFRESH_MS = 3 * 60 * 1000;
+  let opacity = 0.8;
+
+  const map = L.map('map', { zoomControl: false, maxZoom: 13, minZoom: 5 })
+    .setView(VUE_DEPART ? [VUE_DEPART.lat, VUE_DEPART.lon] : [46.6, 2.4], VUE_DEPART ? VUE_DEPART.zoom : 6);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a> · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)'
+  }).addTo(map);
+  map.createPane('labels'); map.getPane('labels').style.zIndex = 650; map.getPane('labels').style.pointerEvents = 'none';
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, pane: 'labels' }).addTo(map);
+
+  let toastTimer;
+  function toast(msg, ms = 3500) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+  // ---------------------------------------------------------------- images radar / prévision
+  let meta = null, frames = [], overlays = {}, images = {}, idx = 0, playing = false, timer = null, nowIdx = 0;
+  const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+
+  function overlayFor(f) {
+    if (!overlays[f.file]) {
+      overlays[f.file] = L.imageOverlay(f.file, meta.bounds, { opacity: 0, className: 'rain', interactive: false }).addTo(map);
+    }
+    return overlays[f.file];
+  }
+  function imageFor(f) {
+    if (!images[f.file]) {
+      const img = new Image(); img.decoding = 'async'; img.src = f.file;
+      img.onload = () => updateHere();
+      images[f.file] = img;
+    }
+    return images[f.file];
+  }
+
+  const fmtTime = (d) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const fmtDay = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short' });
+
+  function show(i) {
+    if (!frames.length) return;
+    idx = Math.max(0, Math.min(frames.length - 1, i));
+    frames.forEach((f, k) => { if (k !== idx && overlays[f.file]) overlays[f.file].setOpacity(0); });
+    overlayFor(frames[idx]).setOpacity(opacity);
+    overlayFor(frames[Math.min(idx + 1, frames.length - 1)]);
+    const f = frames[idx], d = new Date(f.time);
+    const future = f.kind === 'prevision';
+    $('kind').textContent = future ? 'Prévision' : 'Mesure';
+    $('kind').className = 'kind ' + f.kind;
+    $('clock').textContent = fmtDay(d) + ' ' + fmtTime(d);
+    const mins = Math.round((d - Date.now()) / 60000);
+    $('rel').textContent = Math.abs(mins) <= 2 ? 'maintenant' : mins > 0 ? `dans ${fmtDur(mins)}` : `il y a ${fmtDur(-mins)}`;
+    const pos = frames.length > 1 ? idx / (frames.length - 1) : 1;
+    $('cursor').style.left = (pos * 100) + '%';
+    $('slider').value = idx;
+  }
+  const fmtDur = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
+
+  function layoutTrack() {
+    const n = frames.length;
+    $('slider').max = Math.max(0, n - 1);
+    const pos = (k) => (n > 1 ? k / (n - 1) : 1) * 100;
+    const firstFut = frames.findIndex(f => f.kind === 'prevision');
+    $('fut').style.left = firstFut < 0 ? '100%' : pos(Math.max(0, firstFut - 0.5)) + '%';
+    $('nowmark').style.left = pos(nowIdx) + '%';
+    // repères horaires
+    const hours = $('hours'); hours.innerHTML = '';
+    frames.forEach((f, k) => {
+      const d = new Date(f.time);
+      if (d.getMinutes() === 0) { const s = document.createElement('span'); s.style.left = pos(k) + '%'; s.textContent = d.getHours() + 'h'; hours.appendChild(s); }
+    });
+    $('strip').innerHTML = frames.map(() => '<span></span>').join('');
+  }
+
+  function play() { playing = true; $('play').textContent = '❚❚'; clearInterval(timer);
+    timer = setInterval(() => show(idx >= frames.length - 1 ? 0 : idx + 1), FRAME_MS); }
+  function pause() { playing = false; $('play').textContent = '▶'; clearInterval(timer); }
+  $('play').onclick = () => playing ? pause() : play();
+  $('prev').onclick = () => { pause(); show(idx - 1); };
+  $('next').onclick = () => { pause(); show(idx + 1); };
+  $('now').onclick = () => { pause(); show(nowIdx); };
+  $('slider').oninput = (e) => { pause(); show(parseInt(e.target.value, 10)); };
+
+  async function loadFrames(first) {
+    try {
+      const r = await fetch('data/frames.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      const m = await r.json();
+      const wasNow = first || idx === nowIdx;
+      const curTime = frames[idx] && frames[idx].time;
+      meta = m; frames = m.frames || [];
+      const keep = new Set(frames.map(f => f.file));
+      Object.keys(overlays).forEach(k => { if (!keep.has(k)) { map.removeLayer(overlays[k]); delete overlays[k]; delete images[k]; } });
+      let last = -1; frames.forEach((f, k) => { if (f.kind === 'radar') last = k; });
+      nowIdx = Math.max(0, last);
+      if (first) buildLegend();
+      layoutTrack();
+      frames.forEach(f => { overlayFor(f); imageFor(f); });
+      const same = frames.findIndex(f => f.time === curTime);
+      show(wasNow || same < 0 ? nowIdx : same);
+      if (!frames.length) $('rel').textContent = 'Pas encore de données';
+      updateHere();
+    } catch (e) {
+      if (first) { $('rel').textContent = 'Données indisponibles'; toast('Les images ne sont pas encore prêtes. Réessaie dans quelques minutes.', 5000); }
+    }
+  }
+
+  function buildLegend() {
+    const L_ = meta.legend;
+    $('legend').innerHTML = '<b>Pluie (mm/h)</b>' + L_.map((l, i) =>
+      `<div><i style="background:${l.color}"></i>${i < L_.length - 1 ? l.min + ' – ' + L_[i + 1].min : l.min + ' et +'}</div>`
+    ).reverse().join('');
+  }
+  $('btnLegend').onclick = () => $('legend').classList.toggle('open');
+  $('legend').onclick = () => $('legend').classList.remove('open');
+
+  // ---------------------------------------------------------------- « pluie ici » : lecture des images au point suivi
+  const probe = document.createElement('canvas'); probe.width = probe.height = 1;
+  const pctx = probe.getContext('2d', { willReadFrequently: true });
+  let herePoint = null, hereLabel = '';
+
+  function classAt(img, lat, lon) {
+    if (!img.complete || !img.naturalWidth || !meta) return null;
+    const [[s, w], [n, e]] = meta.bounds;
+    if (lat < s || lat > n || lon < w || lon > e) return null;
+    const x = (lon - w) / (e - w) * img.naturalWidth;
+    const y = (mercY(n) - mercY(lat)) / (mercY(n) - mercY(s)) * img.naturalHeight;
+    pctx.clearRect(0, 0, 1, 1);
+    pctx.drawImage(img, Math.floor(x), Math.floor(y), 1, 1, 0, 0, 1, 1);
+    const [r, g, b, a] = pctx.getImageData(0, 0, 1, 1).data;
+    if (a < 20) return -1;
+    let best = 0, bd = 1e9;
+    meta.legend.forEach((l, i) => {
+      const c = parseInt(l.color.slice(1), 16), dr = r - (c >> 16), dg = g - ((c >> 8) & 255), db = b - (c & 255);
+      const dd = dr * dr + dg * dg + db * db; if (dd < bd) { bd = dd; best = i; }
+    });
+    return best;
+  }
+  const INTENSITY = ['bruine', 'faible', 'faible', 'modérée', 'modérée', 'forte', 'très forte', 'intense', 'orageuse'];
+
+  function updateHere() {
+    if (!meta || !frames.length) return;
+    const p = herePoint || map.getCenter();
+    const label = herePoint ? hereLabel : 'au centre de la carte';
+    const cells = $('strip').children;
+    let firstRain = null, maxCls = -1;
+    frames.forEach((f, k) => {
+      const c = classAt(imageFor(f), p.lat, p.lng);
+      if (cells[k]) cells[k].style.background = c >= 0 ? meta.legend[c].color : (c === null ? '#f4f6f8' : '#eef1f4');
+      if (k >= nowIdx && c >= 0) { if (firstRain === null) firstRain = k; maxCls = Math.max(maxCls, c); }
+    });
+    let txt;
+    if (firstRain === null) txt = `Pas de pluie prévue ${label} d'ici 3 h`;
+    else if (firstRain === nowIdx) txt = `Il pleut ${label} (${INTENSITY[maxCls]} au plus fort)`;
+    else {
+      const mins = Math.round((new Date(frames[firstRain].time) - Date.now()) / 60000);
+      txt = `Pluie ${label} ${mins <= 0 ? 'imminente' : 'dans ' + fmtDur(mins)} (${INTENSITY[maxCls]} au plus fort)`;
+    }
+    $('here').innerHTML = '<b>' + esc(txt) + '</b>';
+  }
+  map.on('moveend', () => { if (!herePoint) updateHere(); });
+
+  // ---------------------------------------------------------------- localisation
+  let meMarker = null, meCircle = null, watchId = null, firstFix = true, recenterOnFix = false;
+  const meIcon = L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+  function setPlace(lat, lon, label) {
+    if (label) { $('place').textContent = label; return; }
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&accept-language=fr&lat=${lat}&lon=${lon}`)
+      .then(r => r.json()).then(j => { const a = j.address || {}; const c = a.city || a.town || a.village || a.municipality;
+        if (c) { $('place').textContent = '📍 ' + c; hereLabel = 'à ' + c; updateHere(); } }).catch(() => {});
+  }
+  function onPos(p) {
+    const ll = [p.coords.latitude, p.coords.longitude];
+    if (!meMarker) { meMarker = L.marker(ll, { icon: meIcon, zIndexOffset: 1000 }).addTo(map);
+      meCircle = L.circle(ll, { radius: p.coords.accuracy, color: '#1f8ef1', weight: 1, fillOpacity: .06 }).addTo(map); }
+    else { meMarker.setLatLng(ll); meCircle.setLatLng(ll).setRadius(p.coords.accuracy); }
+    herePoint = L.latLng(ll); if (!hereLabel) hereLabel = 'à ta position';
+    if (firstFix) { if (!VUE_DEPART || recenterOnFix) map.setView(ll, VUE_DEPART ? VUE_DEPART.zoom : 9);
+      setPlace(ll[0], ll[1]); firstFix = false; recenterOnFix = false; }
+    updateHere();
+  }
+  function onErr(err) {
+    $('place').textContent = 'Position non disponible';
+    toast(err.code === 1 ? 'Localisation refusée : autorise-la dans les réglages du navigateur, ou cherche une ville 🔍' : 'Position introuvable pour le moment.', 5000);
+  }
+  function locate(recenter) {
+    if (!('geolocation' in navigator)) return onErr({ code: 2 });
+    if (recenter && meMarker) map.setView(meMarker.getLatLng(), Math.max(map.getZoom(), 9));
+    else { firstFix = true; recenterOnFix = !!recenter; }
+    if (watchId === null) watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  }
+  $('btnLocate').onclick = () => locate(true);
+
+  // ---------------------------------------------------------------- recherche
+  $('btnSearch').onclick = () => { const s = $('search'); s.classList.toggle('open'); if (s.classList.contains('open')) $('q').focus(); };
+  $('search').onsubmit = async (e) => {
+    e.preventDefault(); const q = $('q').value.trim(); if (!q) return;
+    try {
+      const j = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(q)}`)).json();
+      if (!j.length) return toast('Lieu introuvable');
+      const name = j[0].display_name.split(',')[0];
+      map.setView([+j[0].lat, +j[0].lon], 10);
+      herePoint = L.latLng(+j[0].lat, +j[0].lon); hereLabel = 'à ' + name;
+      $('place').textContent = '🔎 ' + name; updateHere();
+      $('search').classList.remove('open'); $('q').blur();
+    } catch { toast('Recherche indisponible'); }
+  };
+
+  // ---------------------------------------------------------------- points
+  const STORE_KEY = 'radar-pluie-points';
+  const pointsLayer = L.layerGroup().addTo(map);
+  let persos = []; try { persos = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch {}
+  const savePersos = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(persos)); } catch {} };
+  function follow(p) { herePoint = L.latLng(p.lat, p.lon); hereLabel = 'à ' + p.nom; $('place').textContent = '⭐ ' + p.nom; updateHere(); }
+  function drawPoints() {
+    pointsLayer.clearLayers();
+    const add = (p, perso, i) => {
+      const m = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: '', html: `<div class="pin${perso ? ' perso' : ''}"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] }), zIndexOffset: 500 })
+        .bindTooltip(esc(p.nom), { permanent: true, direction: 'right', offset: [8, 0], className: 'pinlabel' });
+      m.on('click', () => { follow(p); if (perso) openAdd(null, i); });
+      pointsLayer.addLayer(m);
+    };
+    POINTS.forEach(p => add(p, false)); persos.forEach((p, i) => add(p, true, i));
+  }
+  let pendingLatLng = null, editIndex = null;
+  function openAdd(latlng, index) {
+    pendingLatLng = latlng; editIndex = index === undefined ? null : index;
+    const editing = editIndex !== null;
+    $('addTitle').textContent = editing ? 'Modifier le point' : 'Nouveau point';
+    $('addName').value = editing ? persos[editIndex].nom : '';
+    $('addDelete').style.display = editing ? '' : 'none';
+    $('sheetAdd').classList.add('open'); setTimeout(() => $('addName').focus(), 50);
+  }
+  const closeAdd = () => { $('sheetAdd').classList.remove('open'); $('addName').blur(); };
+  $('addCancel').onclick = closeAdd;
+  $('addDelete').onclick = () => { persos.splice(editIndex, 1); savePersos(); drawPoints(); closeAdd(); toast('Point supprimé'); };
+  $('formAdd').onsubmit = (e) => {
+    e.preventDefault(); const nom = $('addName').value.trim() || 'Mon point';
+    if (editIndex !== null) persos[editIndex].nom = nom;
+    else { const p = { nom, lat: +pendingLatLng.lat.toFixed(5), lon: +pendingLatLng.lng.toFixed(5) }; persos.push(p); follow(p); }
+    savePersos(); drawPoints(); closeAdd();
+  };
+  map.on('contextmenu', (e) => openAdd(e.latlng));
+  $('btnFav').onclick = () => {
+    const all = [...POINTS.map(p => ({ ...p, perso: false })), ...persos.map(p => ({ ...p, perso: true }))];
+    $('favList').innerHTML = all.map((p, i) => `<li data-i="${i}"><span>${p.perso ? '🟡' : '🔴'}</span><b>${esc(p.nom)}</b><span class="muted">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span></li>`).join('');
+    $('favList').querySelectorAll('li').forEach(li => li.onclick = () => { const p = all[+li.dataset.i]; map.setView([p.lat, p.lon], Math.max(map.getZoom(), 10)); follow(p); $('sheetFav').classList.remove('open'); });
+    $('sheetFav').classList.add('open');
+  };
+  $('favClose').onclick = () => $('sheetFav').classList.remove('open');
+  ['sheetAdd', 'sheetFav'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
+  drawPoints();
+
+  // ---------------------------------------------------------------- démarrage
+  loadFrames(true);
+  setInterval(() => loadFrames(false), REFRESH_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFrames(false); });
+  locate(false);
+})();
+</script>
+</body>
+</html>
