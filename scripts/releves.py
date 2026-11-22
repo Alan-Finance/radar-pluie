@@ -249,6 +249,8 @@ def update_quotidiennes(config: dict, prev: dict, log) -> dict:
 
     now = datetime.now(UTC)
     deps = config.get("departements", [])
+    if not deps:
+        return {}
     radius = float(config.get("rayon_quotidien_km", 15))
     if prev.get("updated") and prev.get("rayon_km") == radius and prev.get("deps") == deps and prev.get("stations") and prev.get("v") == 2:
         age = (now - datetime.strptime(prev["updated"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)).total_seconds()

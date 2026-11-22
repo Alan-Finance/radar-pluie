@@ -6,9 +6,7 @@
   },
   "rayon_stations_km": 50,
   "nb_stations": 40,
-  "departements": [
-    "37",
-    "86"
-  ],
-  "rayon_quotidien_km": 15
+  "departements": [],
+  "rayon_quotidien_km": 15,
+  "_note_departements": "Pluviomètres à relevé quotidien : désactivé (aucun poste actif plus proche que L'Île-Bouchard et Saint-Épain). Mettre par ex. [\"37\", \"86\"] pour réactiver."
 }
