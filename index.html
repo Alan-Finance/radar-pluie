@@ -839,7 +839,7 @@ const POINTS = [
   loadFrames(true);
   setInterval(() => loadFrames(false), REFRESH_MS);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFrames(false); });
-  locate(false);
+  // la position GPS n'est demandée que sur appui du bouton 📍
 })();
 </script>
 </body>
