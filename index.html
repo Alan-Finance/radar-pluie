@@ -474,7 +474,9 @@ const POINTS = [
       nowIdx = Math.max(0, last);
       if (first) buildLegend();
       layoutTrack();
-      frames.forEach(f => imageFor(f));  // préchargement (cache du navigateur)
+      if (frames.length) imageFor(frames[nowIdx]);
+      const preload = () => frames.forEach(f => imageFor(f));  // préchargement (cache du navigateur)
+      if (page === 'radar') preload(); else (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(preload, { timeout: 3000 });
       const same = frames.findIndex(f => f.time === curTime);
       show(wasNow || same < 0 ? nowIdx : same);
       if (!frames.length) $('rel').textContent = 'Pas encore de données';
@@ -721,7 +723,7 @@ const POINTS = [
     page = p;
     document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-    if (p === 'radar') { setTimeout(() => { map.invalidateSize(); if (frames.length) { show(0); play(); } }, 30); }
+    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.invalidateSize(); if (frames.length) { show(0); play(); } }, 30); }
     else { pause(); }
     if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
     if (p === 'rel') loadReleves();
@@ -766,17 +768,34 @@ const POINTS = [
     if (hi < 0.5) return '';
     return `entre ${mmTxt(lo)} et ${mmTxt(hi)} mm selon les scénarios`;
   }
+  const FC_CACHE = 'radar-pluie-fc';
+  function ensembleRange(e, date) {
+    if (!e || !e.hourly) return null;
+    const sums = [];
+    Object.keys(e.hourly).filter(k => k.startsWith('precipitation')).forEach(k => {
+      let s = 0, n = 0; e.hourly.time.forEach((t, j) => { if (t.startsWith(date) && e.hourly[k][j] != null) { s += e.hourly[k][j]; n++; } });
+      if (n) sums.push(s);
+    });
+    return sums.length > 5 ? [pct(sums, 0.25), pct(sums, 0.75)] : null;
+  }
+  function saveFc(key) { try { localStorage.setItem(FC_CACHE, JSON.stringify({ key, at: Date.now(), fc })); } catch {} }
+
   async function loadForecast() {
     const key = lieu.lat.toFixed(3) + ',' + lieu.lon.toFixed(3);
     fcFor = key;
+    if (fc && fc.key !== key) fc = null;
+    // 1) affichage instantané de la dernière prévision gardée sur le téléphone (moins de 6 h)
+    try {
+      const c = JSON.parse(localStorage.getItem(FC_CACHE) || 'null');
+      if (c && c.key === key && Date.now() - c.at < 6 * 36e5 && c.fc) { fc = c.fc; renderForecast(); }
+    } catch {}
     const q = `latitude=${lieu.lat}&longitude=${lieu.lon}&timezone=Europe%2FParis&forecast_days=10`;
     try {
       const HV = 'temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m';
-      const [f, mf, e, meta] = await Promise.all([
+      const ensP = fetch(`https://ensemble-api.open-meteo.com/v1/ensemble?${q}&hourly=precipitation&models=ecmwf_ifs025`).then(r => r.json()).catch(() => null);
+      const [f, mf] = await Promise.all([
         fetch(`https://api.open-meteo.com/v1/forecast?${q}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset&hourly=${HV},precipitation_probability,is_day`).then(r => r.json()),
         fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=${HV}&models=meteofrance_seamless`).then(r => r.json()).catch(() => null),
-        fetch(`https://ensemble-api.open-meteo.com/v1/ensemble?${q}&hourly=precipitation&models=ecmwf_ifs025`).then(r => r.json()).catch(() => null),
-        fetch('https://api.open-meteo.com/data/meteofrance_arome_france_hd/static/meta.json').then(r => r.json()).catch(() => null),
       ]);
       if (fcFor !== key) return;
       if (!f.daily) throw new Error(f.reason || 'réponse vide');
@@ -790,32 +809,29 @@ const POINTS = [
           code: pick('weather_code', k), ws: pick('wind_speed_10m', k), wg: pick('wind_gusts_10m', k), wd: pick('wind_direction_10m', k), day: H.is_day[k] }); });
         const nMF = hours.filter(h => h.mf).length, fromMF = nMF >= hours.length - 2 && hours.length > 0;
         const wmean = hours.reduce((a, h) => a + (h.ws || 0), 0) / Math.max(1, hours.length);
-        let range = null;
-        if (e && e.hourly) {
-          const sums = [];
-          Object.keys(e.hourly).filter(k => k.startsWith('precipitation')).forEach(k => {
-            let s = 0, n = 0; e.hourly.time.forEach((t, j) => { if (t.startsWith(date) && e.hourly[k][j] != null) { s += e.hourly[k][j]; n++; } });
-            if (n) sums.push(s);
-          });
-          if (sums.length > 5) range = [pct(sums, 0.25), pct(sums, 0.75)];
-        }
         const hsum = hours.reduce((a, h) => a + (h.mm || 0), 0);
         const temps = hours.map(h => h.temp).filter(v => v != null);
-        // temps sensible du jour : le plus marquant des heures de jour (comme le code « journalier »)
         const dayCodes = hours.filter(h => h.day).map(h => h.code).filter(v => v != null);
         const code = fromMF && dayCodes.length ? Math.max(...dayCodes) : f.daily.weather_code[i];
         let vx = 0, vy = 0; hours.forEach(h => { if (h.wd != null) { vx += Math.sin(h.wd * Math.PI / 180) * (h.ws || 1); vy += Math.cos(h.wd * Math.PI / 180) * (h.ws || 1); } });
         const dir = fromMF ? (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360 : f.daily.wind_direction_10m_dominant[i];
+        const old = fc && fc.days && fc.days.find(x => x.date === date);
         return { date, code, src: fromMF ? 'mf' : 'eu',
           tmin: fromMF && temps.length ? Math.min(...temps) : f.daily.temperature_2m_min[i], tmax: fromMF && temps.length ? Math.max(...temps) : f.daily.temperature_2m_max[i], sum: hsum,
           prob: f.daily.precipitation_probability_max[i], gust: fromMF ? Math.max(...hours.map(h => h.wg || 0)) : f.daily.wind_gusts_10m_max[i], dir, wind: wmean,
-          sunrise: f.daily.sunrise[i], sunset: f.daily.sunset[i], range, hours };
+          sunrise: f.daily.sunrise[i], sunset: f.daily.sunset[i], range: old ? old.range : null, hours };
       });
-      fcMeta = meta;
-      fc = { days };
+      fc = { days, key };
       renderForecast();
+      saveFc(key);
+      // 2) la fourchette des scénarios (fichier plus lourd) arrive ensuite, sans bloquer l'affichage
+      const e = await ensP;
+      if (fcFor !== key || !e) return;
+      fc.days.forEach(d => { d.range = ensembleRange(e, d.date); });
+      if (dayIdx >= 0) renderForecast();
+      saveFc(key);
     } catch (err) {
-      $('prevContent').innerHTML = '<div class="note">Prévisions indisponibles pour le moment. Vérifie ta connexion et réessaie.</div>';
+      if (!fc) $('prevContent').innerHTML = '<div class="note">Prévisions indisponibles pour le moment. Vérifie ta connexion et réessaie.</div>';
     }
   }
 
@@ -897,10 +913,12 @@ const POINTS = [
   // ================================================================ relevés (stations Météo-France)
   let rel = null, relStation = 0, relLoaded = 0;
   async function loadReleves() {
+    if (!rel) { try { const c = JSON.parse(localStorage.getItem('radar-pluie-rel') || 'null'); if (c) { rel = c; renderReleves(); renderMaj(); } } catch {} }
     if (Date.now() - relLoaded < 120000 && rel) return renderReleves();
     try {
       const r = await fetch('data/releves.json?t=' + Date.now(), { cache: 'no-store' });
       rel = r.ok ? await r.json() : null; relLoaded = Date.now();
+      if (rel) { try { localStorage.setItem('radar-pluie-rel', JSON.stringify(rel)); } catch {} }
     } catch { rel = null; }
     renderReleves();
     renderMaj();
