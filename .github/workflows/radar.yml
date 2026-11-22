@@ -33,6 +33,9 @@ jobs:
 
       - run: pip install -r scripts/requirements.txt
 
+      - id: pages
+        uses: actions/configure-pages@v5
+
       - name: Préparer le site
         run: |
           mkdir -p site
@@ -41,11 +44,9 @@ jobs:
       - name: Récupérer les données Météo-France et fabriquer les images
         env:
           METEOFRANCE_KEY: ${{ secrets.METEOFRANCE_KEY }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
           OUT_DIR: site
         run: python scripts/update.py
-
-      - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
