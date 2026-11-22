@@ -163,12 +163,13 @@ const POINTS = [
 
   const map = L.map('map', { zoomControl: false, maxZoom: 13, minZoom: 5 })
     .setView(VUE_DEPART ? [VUE_DEPART.lat, VUE_DEPART.lon] : [46.6, 2.4], VUE_DEPART ? VUE_DEPART.zoom : 6);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a> · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)'
+  const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+  L.tileLayer(ESRI + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 16,
+    attribution: 'Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)'
   }).addTo(map);
   map.createPane('labels'); map.getPane('labels').style.zIndex = 650; map.getPane('labels').style.pointerEvents = 'none';
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, pane: 'labels' }).addTo(map);
+  L.tileLayer(ESRI + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, pane: 'labels' }).addTo(map);
 
   let toastTimer;
   function toast(msg, ms = 3500) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
@@ -305,8 +306,9 @@ const POINTS = [
     let firstRain = null, maxCls = -1;
     frames.forEach((f, k) => {
       const c = classAt(imageFor(f), p.lat, p.lng);
-      if (cells[k]) cells[k].style.background = c >= 0 ? meta.legend[c].color : (c === null ? '#f4f6f8' : '#eef1f4');
-      if (k >= nowIdx && c >= 0) { if (firstRain === null) firstRain = k; maxCls = Math.max(maxCls, c); }
+      const wet = c !== null && c >= 0;
+      if (cells[k]) cells[k].style.background = wet ? meta.legend[c].color : '#eef1f4';
+      if (k >= nowIdx && wet) { if (firstRain === null) firstRain = k; maxCls = Math.max(maxCls, c); }
     });
     let txt;
     if (firstRain === null) txt = `Pas de pluie prévue ${label} d'ici 3 h`;
