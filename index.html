@@ -746,7 +746,7 @@ const POINTS = [
     page = p;
     document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.invalidateSize(); if (frames.length) { show(0); play(); } }, 30); }
+    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.invalidateSize(); if (frames.length) { show(nowIdx); play(); } }, 30); }
     else { pause(); }
     if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
     if (p === 'rel') loadReleves();
