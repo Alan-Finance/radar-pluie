@@ -53,5 +53,13 @@ jobs:
         with:
           path: site
 
+      # GitHub ne retrouve parfois pas l'archive juste après l'envoi : on réessaie une fois avant d'échouer.
       - id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - if: steps.deploy.outcome == 'failure'
+        run: sleep 20
+
+      - if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
