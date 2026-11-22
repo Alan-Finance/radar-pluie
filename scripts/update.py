@@ -392,31 +392,29 @@ def fetch_forecast(existing_run: str | None) -> tuple[str | None, dict[datetime,
         frames: dict[datetime, np.ndarray] = {}
         step = timedelta(minutes=15)
         valid = run + step
-        limit = now + timedelta(hours=FORECAST_HOURS, minutes=15)
+        # Jusqu'à run + 4 h 30 : le run suffit pour « maintenant + 3 h » jusqu'à la publication du suivant.
+        limit = run + timedelta(hours=FORECAST_HOURS + 1, minutes=30)
+        complete = True
         while valid <= limit:
             if valid > now - timedelta(minutes=15):
                 resp = aromepi_get(coverage, valid, run)
                 if resp is not None and resp.ok and resp.content[:4] == b"GRIB":
                     grid, lat0, lon0, dlat, dlon = decode_grib2(resp.content)
-                    rate = grib_to_output(grid, lat0, lon0, dlat, dlon)
-                    frames[valid] = rate
+                    frames[valid] = grib_to_output(grid, lat0, lon0, dlat, dlon)
                     if len(frames) == 1:
                         finite = grid[np.isfinite(grid)]
-                        log(
-                            f"  grille {grid.shape}, pas {dlat:.4f}°, valeurs min {finite.min():.3f} "
-                            f"max {finite.max():.3f} moyenne {finite.mean():.4f}"
-                        )
+                        log(f"  grille {grid.shape}, pas {dlat:.4f}°, max {finite.max():.2f} mm/h")
                 else:
                     code = resp.status_code if resp is not None else "?"
-                    body = resp.text[:200].replace(KEY, "***") if resp is not None else ""
-                    log(f"  échéance {valid.strftime('%H:%M')} refusée : HTTP {code} {body}")
-                    if len(frames) == 0:
-                        break
+                    log(f"  échéance {valid.strftime('%H:%M')} pas encore publiée (HTTP {code}) : run incomplet")
+                    complete = False
+                    break
                 time.sleep(0.7)  # quota : 100 requêtes / minute
             valid += step
-        if frames:
-            log(f"  {len(frames)} échéances lues")
+        if frames and complete:
+            log(f"  {len(frames)} échéances lues (run complet)")
             return stamp, frames
+        log("  run ignoré tant qu'il est incomplet, on garde le précédent")
     return None, {}
 
 
@@ -491,7 +489,7 @@ def main() -> int:
         frames.pop(k)
 
     # Prévision
-    old_run = state.get("forecast_run")
+    old_run = state.get("forecast_run") if state.get("forecast_complete") else None
     if KEY:
         try:
             run, fc = fetch_forecast(old_run)
@@ -508,6 +506,7 @@ def main() -> int:
                 render(rate, path)
                 frames[("prevision", iso)] = {"kind": "prevision", "time": iso, "file": f"data/p/{path.name}"}
             state["forecast_run"] = run
+            state["forecast_complete"] = True
 
     # La prévision commence après la dernière image radar et s'arrête à +3 h.
     last_radar = max(
@@ -523,6 +522,7 @@ def main() -> int:
     out = {
         "generated": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "forecast_run": state.get("forecast_run"),
+        "forecast_complete": bool(state.get("forecast_complete")),
         "bounds": [[SOUTH, WEST], [NORTH, EAST]],
         "size": [WIDTH, HEIGHT],
         "legend": [

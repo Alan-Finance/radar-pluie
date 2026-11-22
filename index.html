@@ -163,6 +163,21 @@
   .chart h3 { margin:0 0 6px; font-size:15px; color:var(--blue); }
   .chart svg { width:100%; display:block; }
   #page-radar .backbtn { font-size:24px; }
+
+  .pill { margin:0 auto 12px; width:max-content; max-width:100%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.15); padding:8px 18px; color:var(--blue); font-style:italic; font-size:16px; }
+  .sec { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); margin-bottom:14px; }
+  .sech { background:#3f97b8; color:#fff; font-size:18px; padding:10px 14px; }
+  .nrow { padding:10px 14px; border-bottom:1px solid #e6eaee; }
+  .nrow:last-child, .crow:last-child { border-bottom:0; }
+  .nname, .cname { font-size:17px; } .nname small, .cname small { color:var(--muted); font-size:13px; }
+  .nvals { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .nmm { display:flex; align-items:center; gap:10px; font-size:18px; } .nmm b { font-weight:500; }
+  .ntemp { display:flex; flex-direction:column; align-items:flex-end; font-size:15px; line-height:1.15; }
+  .crow { padding:10px 14px; border-bottom:2px solid #e6eaee; cursor:pointer; }
+  .crow.sel { background:#f2f8fd; }
+  .cgrid { display:grid; grid-template-columns:repeat(6,1fr); text-align:center; margin-top:6px; row-gap:2px; }
+  .ch { font-size:15px; color:#333; }
+  .cv { font-size:21px; color:#8c99a6; } .cv.wet { color:#1f6fb8; } .cv sup { font-size:10px; color:#8c99a6; }
 </style>
 </head>
 <body>
@@ -758,49 +773,77 @@ const POINTS = [
     return svg + '</svg>';
   }
 
+  // clé horaire "YYYY-MM-DDTHH:00Z" (fin de l'heure de mesure) <-> Date
+  const hk = (d) => d.toISOString().slice(0, 13) + ':00Z';
+  const hdate = (k) => new Date(k.replace('Z', ':00Z'));
+  const parisHour = (d) => +d.toLocaleString('fr-FR', { hour: '2-digit', hour12: false, timeZone: 'Europe/Paris' }).slice(0, 2);
+  function lastKeyOf(st) { return Object.keys(st.heures).sort().reverse().find(k => st.heures[k].rr != null); }
+  function sumHours(st, end, n) {
+    let s = 0, have = 0;
+    for (let i = 0; i < n; i++) { const v = st.heures[hk(new Date(end - i * 36e5))]; if (v && v.rr != null) { s += v.rr; have++; } }
+    return { s, have, n };
+  }
+  function sumDays(st, n) {
+    const J = st.jours || {}; let s = 0, have = 0;
+    for (let i = 0; i < n; i++) { const d = J[parisDay(i)]; if (d) { s += d.mm; have++; } }
+    return { s, have, n };
+  }
+  function nightOf(st) {
+    // nuit de 22 h à 6 h (heure de Paris) : la dernière terminée, ou celle en cours avant 6 h
+    const now = new Date(); let end = new Date(now); end.setMinutes(0, 0, 0);
+    while (parisHour(end) !== 6) end = new Date(end - 36e5);
+    let s = 0, have = 0, tmin = null, tmax = null;
+    for (let i = 0; i < 8; i++) {
+      const v = st.heures[hk(new Date(end - i * 36e5))];
+      if (!v) continue;
+      if (v.rr != null) { s += v.rr; have++; }
+      if (v.t != null) { tmin = tmin == null ? v.t : Math.min(tmin, v.t); tmax = tmax == null ? v.t : Math.max(tmax, v.t); }
+    }
+    return { s, have, tmin, tmax };
+  }
+  const cell = (r) => `<div class="cv${r.s >= 0.1 ? ' wet' : ''}">${r.have ? fmtMm(r.s) : '–'}${r.have && r.have < r.n ? '<sup>*</sup>' : ''}</div>`;
+  const fmtMm = (v) => v < 0.05 ? '0' : v < 10 ? fmt1(v) : String(Math.round(v));
+
   function renderReleves() {
     const box = $('relContent');
     if (!rel) { box.innerHTML = '<div class="note">Les relevés ne sont pas encore disponibles. Le robot les prépare : réessaie dans quelques minutes.</div>'; return; }
     if (rel.status === 'acces_refuse') {
-      box.innerHTML = `<div class="note"><b>Il manque un abonnement Météo-France.</b><br>Sur portail-api.meteofrance.fr, abonne-toi à l'API <b>« Paquet Observations »</b> (DefaultApplication), génère un nouveau jeton, puis remplace la valeur du secret <b>METEOFRANCE_KEY</b> sur GitHub. Les relevés apparaîtront au passage suivant du robot.</div>`;
+      box.innerHTML = `<div class="note"><b>Météo-France refuse encore l'accès aux relevés.</b><br>Vérifie dans « Mes API » que <b>Observations du package (v2)</b> est bien abonnée dans DefaultApplication, génère un <b>nouveau jeton depuis cette carte</b>, puis remplace la valeur du secret <b>METEOFRANCE_KEY</b> sur GitHub.</div>`;
       return;
     }
     if (!rel.stations || !rel.stations.length) { box.innerHTML = '<div class="note">Aucune station Météo-France avec pluviomètre trouvée près de ' + esc(rel.lieu.nom) + '.</div>'; return; }
-    relStation = Math.min(relStation, rel.stations.length - 1);
-    const st = rel.stations[relStation];
-    const hk = Object.keys(st.heures).sort();
-    const lastKey = [...hk].reverse().find(k => st.heures[k].rr != null);
-    const last = lastKey ? st.heures[lastKey] : null;
-    const lastT = [...hk].reverse().map(k => st.heures[k].t).find(t => t != null);
-    const J = st.jours || {};
-    const sumDays = (n) => { let s = 0, have = 0; for (let i = 0; i < n; i++) { const d = J[parisDay(i)]; if (d) { s += d.mm; have++; } } return { s, have }; };
-    const today = J[parisDay(0)], yest = J[parisDay(1)], w7 = sumDays(7), m30 = sumDays(30);
-    const since = Object.keys(J).sort()[0];
-    // 24 dernières heures
-    const now = new Date(); const h24 = [], l24 = [];
-    for (let i = 23; i >= 0; i--) {
-      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - i));
-      const k = d.toISOString().slice(0, 13) + ':00Z';
-      h24.push(st.heures[k] ? st.heures[k].rr : null);
-      l24.push(d.toLocaleTimeString('fr-FR', { hour: '2-digit', timeZone: 'Europe/Paris' }).replace(' h', 'h'));
-    }
-    const d30 = [], l30 = [];
+    const sts = rel.stations;
+    relStation = Math.min(relStation, sts.length - 1);
+    const lastKeys = sts.map(lastKeyOf).filter(Boolean).sort();
+    const ref = lastKeys.length ? hdate(lastKeys[lastKeys.length - 1]) : new Date();
+    const head = `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>`;
+
+    const night = `<div class="sec"><div class="sech">Analyse de la nuit (22h00 – 6h00)</div>${sts.map(st => {
+      const n = nightOf(st);
+      return `<div class="nrow"><div class="nname">${esc(st.nom)} <small>(${Math.round(st.km)} km)</small></div>
+        <div class="nvals"><span class="nmm">${gauge(Math.min(1, n.s / 20))}<b>${n.have ? fmtMm(n.s) + ' mm' : '–'}</b></span>
+        <span class="ntemp"><span style="color:var(--red)">${n.tmax != null ? fmt1(n.tmax) + '°C' : ''}</span><span style="color:#2b6a9a">${n.tmin != null ? fmt1(n.tmin) + '°C' : ''}</span></span></div></div>`;
+    }).join('')}</div>`;
+
+    const cumul = `<div class="sec"><div class="sech">Cumul précipitations (en mm)</div>${sts.map((st, i) => `
+      <div class="crow${i === relStation ? ' sel' : ''}" data-i="${i}">
+        <div class="cname">${esc(st.nom)} <small>(${Math.round(st.km)} km)</small></div>
+        <div class="cgrid"><div class="ch">03h</div><div class="ch">12h</div><div class="ch">24h</div><div class="ch">48h</div><div class="ch">7j</div><div class="ch">30j</div>
+          ${cell(sumHours(st, ref, 3))}${cell(sumHours(st, ref, 12))}${cell(sumHours(st, ref, 24))}${cell(sumHours(st, ref, 48))}${cell(sumDays(st, 7))}${cell(sumDays(st, 30))}</div>
+      </div>`).join('')}</div>`;
+
+    const st = sts[relStation];
+    const h24 = [], l24 = [];
+    for (let i = 23; i >= 0; i--) { const d = new Date(ref - i * 36e5); const v = st.heures[hk(d)]; h24.push(v ? v.rr : null); l24.push(parisHour(d) + 'h'); }
+    const J = st.jours || {}, d30 = [], l30 = [];
     for (let i = 29; i >= 0; i--) { const k = parisDay(i); d30.push(J[k] ? J[k].mm : null); l30.push(k.slice(8, 10) + '/' + k.slice(5, 7)); }
-    box.innerHTML = `
-      <p class="muted small center">Pluviomètres Météo-France près de <b>${esc(rel.lieu.nom)}</b> · mis à jour à ${new Date(rel.updated).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
-      <div class="chips">${rel.stations.map((s, i) => `<button data-i="${i}" class="${i === relStation ? 'active' : ''}">${esc(s.nom)} · ${s.km} km</button>`).join('')}</div>
-      <div class="tiles">
-        <div class="tile"><small>Dernière heure</small><b>${fmt1(last ? last.rr : null)}</b> mm<br><i>${lastKey ? 'jusqu’à ' + new Date(lastKey.replace('Z', ':00Z')).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''}</i></div>
-        <div class="tile"><small>Aujourd’hui</small><b>${fmt1(today ? today.mm : 0)}</b> mm<br><i>depuis minuit</i></div>
-        <div class="tile"><small>Hier</small><b>${fmt1(yest ? yest.mm : null)}</b> mm<br><i>${yest && yest.n < 24 ? 'partiel (' + yest.n + ' h)' : '&nbsp;'}</i></div>
-        <div class="tile"><small>Température</small><b>${lastT != null ? fmt1(lastT) : '–'}</b> °C<br><i>dernière mesure</i></div>
-        <div class="tile"><small>7 jours</small><b>${fmt1(w7.s)}</b> mm<br><i>${w7.have < 7 ? 'sur ' + w7.have + ' j relevés' : '&nbsp;'}</i></div>
-        <div class="tile"><small>30 jours</small><b>${fmt1(m30.s)}</b> mm<br><i>${m30.have < 30 ? 'sur ' + m30.have + ' j relevés' : '&nbsp;'}</i></div>
-      </div>
-      <div class="chart"><h3>Pluie des 24 dernières heures</h3>${bars(h24, l24, { every: 4, min: 1 })}</div>
-      <div class="chart"><h3>Pluie par jour (30 jours)</h3>${bars(d30, l30, { every: 5, min: 2 })}</div>
-      <p class="small muted">Données : Météo-France (observations horaires des stations). L’historique se construit depuis le ${since ? new Date(since + 'T12:00').toLocaleDateString('fr-FR') : 'premier relevé'} : Météo-France ne fournit que les dernières 24 h, le robot garde le reste.</p>`;
-    box.querySelectorAll('.chips button').forEach(b => b.onclick = () => { relStation = +b.dataset.i; renderReleves(); });
+    const since = Object.keys(J).sort()[0];
+
+    box.innerHTML = head + night + cumul + `
+      <div class="chart"><h3>${esc(st.nom)} · pluie heure par heure (24 h)</h3>${bars(h24, l24, { every: 4, min: 1 })}</div>
+      <div class="chart"><h3>${esc(st.nom)} · pluie par jour (30 jours)</h3>${bars(d30, l30, { every: 5, min: 2 })}</div>
+      <p class="small muted">Touche une station pour voir ses graphiques. <sup>*</sup> = cumul partiel : Météo-France ne fournit que les dernières 24 h, l'historique se construit au fil des jours${since ? ' (depuis le ' + new Date(since + 'T12:00').toLocaleDateString('fr-FR') + ')' : ''}.<br>Données : pluviomètres Météo-France, observations horaires.</p>`;
+    box.querySelectorAll('.crow').forEach(r => r.onclick = () => { relStation = +r.dataset.i; renderReleves(); });
   }
 
   // ---------------------------------------------------------------- démarrage
