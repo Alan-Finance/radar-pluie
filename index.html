@@ -258,6 +258,17 @@
   .hours { height:12px; font-size:9.5px; }
   .here { font-size:11px; margin-top:1px; min-height:13px; }
   #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 120px); }
+
+  /* ===== panneau du radar : une seule ligne lisible ===== */
+  .stamp { flex-wrap:nowrap; min-width:0; }
+  .stamp .kind { flex:none; }
+  .stamp .clock { white-space:nowrap; flex:none; font-size:16px; }
+  .stamp .rel { white-space:nowrap; flex:none; font-size:11px; color:var(--muted); }
+  .controls { flex:none; gap:3px; }
+  .controls button { width:30px; height:26px; font-size:13px; }
+  .controls button.now { width:38px; font-size:9.5px; font-weight:700; }
+  .here { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width:360px) { .stamp .rel { display:none; } }
 </style>
 </head>
 <body>
@@ -459,16 +470,17 @@ const POINTS = [
     imageFor(frames[Math.min(idx + 1, frames.length - 1)]);
     const f = frames[idx], d = new Date(f.time);
     const future = f.kind === 'prevision';
-    $('kind').textContent = future ? 'Prévision' : 'Mesure';
+    $('kind').textContent = future ? 'Prévi' : 'Radar';
     $('kind').className = 'kind ' + f.kind;
-    $('clock').textContent = fmtDay(d) + ' ' + fmtTime(d);
+    // heure seule ; le jour n'apparaît que si ce n'est pas aujourd'hui
+    $('clock').textContent = (d.toDateString() === new Date().toDateString() ? '' : fmtDay(d) + ' ') + fmtTime(d).replace(':', 'h');
     const mins = Math.round((d - Date.now()) / 60000);
-    $('rel').textContent = Math.abs(mins) <= 2 ? 'maintenant' : mins > 0 ? `dans ${fmtDur(mins)}` : `il y a ${fmtDur(-mins)}`;
+    $('rel').textContent = Math.abs(mins) <= 2 ? 'maintenant' : mins > 0 ? `+${fmtDur(mins)}` : `−${fmtDur(-mins)}`;
     const pos = frames.length > 1 ? idx / (frames.length - 1) : 1;
     $('cursor').style.left = (pos * 100) + '%';
     $('slider').value = idx;
   }
-  const fmtDur = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
+  const fmtDur = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
 
   function layoutTrack() {
     const n = frames.length;
