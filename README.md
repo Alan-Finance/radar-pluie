@@ -20,3 +20,14 @@ La clé Météo-France est rangée dans le secret `METEOFRANCE_KEY` du dépôt :
 - Couleurs, seuils, lissage, durée du passé et de la prévision : haut de `scripts/update.py`.
 
 Données : Météo-France, Licence Ouverte 2.0.
+
+## Entretien (à noter dans un agenda)
+
+| Quand | Quoi | Où |
+|---|---|---|
+| **Vers le 20 novembre 2027** | La clé Météo-France expire : en générer une nouvelle (Clé API, durée 31536000) et la coller dans le secret `METEOFRANCE_KEY` | portail-api.meteofrance.fr → Mes API, puis GitHub → Settings → Secrets and variables → Actions |
+| **Avant le 21 novembre 2027** | La clé GitHub `radar-pluie-cron` expire : en recréer une (Actions : lecture et écriture, dépôt radar-pluie) et la recoller après `Bearer ` dans l'en-tête Authorization de la tâche | github.com/settings/personal-access-tokens, puis console.cron-job.org |
+| **Avant le 18 novembre 2028** | Les abonnements aux API Météo-France arrivent à échéance : cliquer sur « Renouveler » | portail-api.meteofrance.fr → Mes API |
+
+Si l'appli affiche « ⚠️ Données pas mises à jour », regarder d'abord l'historique de la tâche sur cron-job.org,
+puis l'onglet Actions du dépôt GitHub.

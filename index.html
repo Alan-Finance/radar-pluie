@@ -273,6 +273,7 @@
   /* La carte du radar est préparée en arrière-plan (cachée mais dimensionnée) :
      le fond de carte et les images sont déjà chargés quand on ouvre l'onglet. */
   #page-radar:not(.active) { display:block; visibility:hidden; pointer-events:none; }
+  .stale { background:#fff4e5; border-left:4px solid #f0a000; color:#7a4b00; font-size:12.5px; padding:7px 10px; margin:0 0 8px; }
 </style>
 </head>
 <body>
@@ -284,6 +285,7 @@
       <button class="gps" id="lieuGps" title="Utiliser ma position">📍</button>
       <button class="gps" id="lieuHome" title="Ma maison">🏠</button>
     </div>
+    <div class="stale" id="stale" hidden></div>
     <div class="maj" id="maj"></div>
     <div class="minihere" id="miniHere" title="Voir le radar"></div>
     <div class="daytabs" id="daytabs"></div>
@@ -918,7 +920,15 @@ const POINTS = [
   const r5 = (v) => Math.max(5, Math.round((v || 0) / 5) * 5);
   function dayLabel(date) { const d = new Date(date + 'T12:00'); return { short: JOURS[d.getDay()], num: d.getDate(), long: `${JOURS_LONG[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}` }; }
 
+  function renderStale() {
+    if (!frames.length) return;
+    const age = Math.round((Date.now() - new Date(frames[nowIdx].time)) / 60000);
+    const el = $('stale');
+    el.hidden = age < 40;
+    if (age >= 40) el.textContent = `⚠️ Données pas mises à jour depuis ${fmtDur(age)}. Le robot ne tourne peut-être plus (vérifie cron-job.org et GitHub).`;
+  }
   function renderMaj() {
+    renderStale();
     const hhmm = (d) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
     // « Dernier relevé » (comme Météus) : la dernière heure mesurée par les stations Météo-France
     let last = null;

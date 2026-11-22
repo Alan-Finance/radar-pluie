@@ -1,9 +1,7 @@
 name: Radar Météo-France
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"   # toutes les 10 minutes (GitHub peut décaler de quelques minutes)
-  workflow_dispatch:          # bouton « Run workflow » pour lancer à la main
+  workflow_dispatch:          # lancé toutes les 10 minutes par cron-job.org (et bouton « Run workflow » à la main)
   push:
     branches: [main]
 
