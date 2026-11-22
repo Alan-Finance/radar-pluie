@@ -538,6 +538,16 @@ def main() -> int:
         for p in (DATA / sub).glob("*.png") if (DATA / sub).exists() else []:
             if p not in listed:
                 p.unlink()
+    # Relevés de pluie des stations proches du lieu (config.json)
+    if KEY:
+        try:
+            import releves
+
+            releves.run(SESSION, OUT, PAGES_URL, log)
+        except Exception as exc:
+            log(f"Relevés en échec : {safe_error(exc)}")
+            traceback.print_exc()
+
     n_r = sum(f["kind"] == "radar" for f in ordered)
     n_p = len(ordered) - n_r
     log(f"Publié : {n_r} images radar, {n_p} images de prévision ({WIDTH}x{HEIGHT} px)")
