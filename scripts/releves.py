@@ -175,6 +175,44 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
     }
 
 
+def update_virtuelle(config: dict, prev: dict, new_slots: dict, log) -> dict:
+    """Station virtuelle : pluie radar Météo-France (lame d'eau) au-dessus du lieu, cumulée par heure et par jour.
+
+    Chaque image radar couvre 5 minutes : une heure complète = 12 images. Les cumuls d'une heure incomplète
+    (robot en retard) sont gardés et marqués par le nombre d'images reçues."""
+    lieu = config["lieu"]
+    now = datetime.now(UTC)
+    slots = dict(prev.get("slots", {}))
+    slots.update(new_slots)
+    cutoff = (now - timedelta(hours=KEEP_HOURS)).strftime("%Y-%m-%dT%H:%MZ")
+    slots = {k: v for k, v in sorted(slots.items()) if k >= cutoff}
+    heures: dict[str, dict] = {}
+    for k, mm in slots.items():
+        end = datetime.strptime(k, "%Y-%m-%dT%H:%MZ").replace(tzinfo=UTC)
+        hour_end = (end - timedelta(minutes=1)).replace(minute=0) + timedelta(hours=1)
+        h = heures.setdefault(hour_end.strftime("%Y-%m-%dT%H:%MZ"), {"rr": 0.0, "t": None, "n": 0})
+        h["rr"] += mm
+        h["n"] += 1
+    for h in heures.values():
+        h["rr"] = round(h["rr"], 1)
+    jours = dict(prev.get("jours", {}))
+    per_day: dict[str, list] = {}
+    for k, mm in slots.items():
+        end = datetime.strptime(k, "%Y-%m-%dT%H:%MZ").replace(tzinfo=UTC)
+        day = (end - timedelta(minutes=1)).astimezone(PARIS).strftime("%Y-%m-%d")
+        per_day.setdefault(day, []).append(mm)
+    for day, values in per_day.items():
+        old = jours.get(day)
+        n = round(len(values) / 12)  # heures couvertes
+        if not old or n >= old.get("n", 0):
+            jours[day] = {"mm": round(sum(values), 1), "n": n}
+    day_cutoff = (now.astimezone(PARIS) - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
+    jours = {d: v for d, v in sorted(jours.items()) if d >= day_cutoff}
+    log(f"Station virtuelle : {len(slots)} images de 5 min gardées, {len(heures)} heures")
+    return {"id": "radar", "nom": f"{lieu['nom']} (radar)", "lat": lieu["lat"], "lon": lieu["lon"], "km": 0.0,
+            "virtuelle": True, "slots": slots, "heures": heures, "jours": jours}
+
+
 def load_json(url: str) -> dict:
     try:
         r = requests.get(url, timeout=30)
@@ -183,7 +221,7 @@ def load_json(url: str) -> dict:
         return {}
 
 
-def run(session: requests.Session, out_dir: Path, pages_url: str, log) -> None:
+def run(session: requests.Session, out_dir: Path, pages_url: str, log, radar_point: dict | None = None) -> None:
     cfg_path = Path("config.json")
     config = json.loads(cfg_path.read_text()) if cfg_path.exists() else {}
     if "lieu" not in config:
@@ -191,6 +229,7 @@ def run(session: requests.Session, out_dir: Path, pages_url: str, log) -> None:
         return
     previous = load_json(f"{pages_url}/data/releves.json") if pages_url else {}
     result = update_releves(session, config, previous, log)
+    result["virtuelle"] = update_virtuelle(config, previous.get("virtuelle", {}) if previous.get("lieu", {}).get("nom") == config["lieu"]["nom"] else {}, radar_point or {}, log)
     (out_dir / "data").mkdir(parents=True, exist_ok=True)
     (out_dir / "data" / "releves.json").write_text(json.dumps(result, ensure_ascii=False))
     names = ", ".join(f"{s['nom']} ({s['km']} km)" for s in result["stations"][:8]) + (f" … ({len(result['stations'])} stations)" if len(result["stations"]) > 8 else "")

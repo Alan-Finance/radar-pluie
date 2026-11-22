@@ -968,7 +968,11 @@ const POINTS = [
     const kmFrom = (x) => { const r = Math.PI / 180, dl = (x.lat - MAISON.lat) * r, dn = (x.lon - MAISON.lon) * r;
       const a = Math.sin(dl / 2) ** 2 + Math.cos(MAISON.lat * r) * Math.cos(x.lat * r) * Math.sin(dn / 2) ** 2; return 12742 * Math.asin(Math.sqrt(a)); };
     const all = rel.stations.map(x => ({ ...x, km: Math.round(kmFrom(x) * 10) / 10 })).sort((a, b) => a.km - b.km);
+    if (rel.virtuelle && rel.virtuelle.slots && Object.keys(rel.virtuelle.slots).length) all.unshift({ ...rel.virtuelle, km: Math.round(kmFrom(rel.virtuelle) * 10) / 10 });
     let chosen = null; try { chosen = JSON.parse(localStorage.getItem('radar-pluie-stations') || 'null'); } catch {}
+    // la station virtuelle radar est ajoutée une fois aux choix déjà enregistrés
+    try { if (chosen && chosen.length && all.some(x => x.id === 'radar') && !localStorage.getItem('radar-pluie-radar-ajoutee')) {
+      chosen = ['radar', ...chosen.filter(id => id !== 'radar')]; localStorage.setItem('radar-pluie-stations', JSON.stringify(chosen)); localStorage.setItem('radar-pluie-radar-ajoutee', '1'); } } catch {}
     let sts = chosen && chosen.length ? all.filter(x => chosen.includes(x.id)) : [];
     if (!sts.length) sts = all.slice(0, 5);
     relStation = Math.min(relStation, sts.length - 1);
@@ -980,14 +984,14 @@ const POINTS = [
 
     const night = `<div class="sec"><div class="sech">Analyse de la nuit (22h00 – 6h00)</div>${sts.map(st => {
       const n = nightOf(st);
-      return `<div class="nrow"><div class="nname">${esc(st.nom)} <small>(${Math.round(st.km)} km)</small></div>
+      return `<div class="nrow"><div class="nname">${esc(st.nom)} <small>${st.virtuelle ? '(station virtuelle)' : '(' + Math.round(st.km) + ' km)'}</small></div>
         <div class="nvals"><span class="nmm">${gauge(Math.min(1, n.s / 20))}<b>${n.have ? fmtMm(n.s) + ' mm' : '–'}</b></span>
         <span class="ntemp"><span style="color:var(--red)">${n.tmax != null ? fmt1(n.tmax) + '°C' : ''}</span><span style="color:#2b6a9a">${n.tmin != null ? fmt1(n.tmin) + '°C' : ''}</span></span></div></div>`;
     }).join('')}</div>`;
 
     const cumul = `<div class="sec"><div class="sech">Cumul précipitations (en mm)</div>${sts.map((st, i) => `
       <div class="crow${i === relStation ? ' sel' : ''}" data-i="${i}">
-        <div class="cname">${esc(st.nom)} <small>(${Math.round(st.km)} km)</small></div>
+        <div class="cname">${esc(st.nom)} <small>${st.virtuelle ? '(station virtuelle)' : '(' + Math.round(st.km) + ' km)'}</small></div>
         <div class="cgrid"><div class="ch">03h</div><div class="ch">12h</div><div class="ch">24h</div><div class="ch">48h</div><div class="ch">7j</div><div class="ch">30j</div>
           ${cell(sumHours(st, ref, 3))}${cell(sumHours(st, ref, 12))}${cell(sumHours(st, ref, 24))}${cell(sumHours(st, ref, 48))}${cell(sumDays(st, 7))}${cell(sumDays(st, 30))}</div>
       </div>`).join('')}</div>`;
@@ -1002,7 +1006,7 @@ const POINTS = [
     box.innerHTML = head + cumul + night + `
       <div class="chart"><h3>${esc(st.nom)} · pluie heure par heure (24 h)</h3>${bars(h24, l24, { every: 4, min: 1 })}</div>
       <div class="chart"><h3>${esc(st.nom)} · pluie par jour (30 jours)</h3>${bars(d30, l30, { every: 5, min: 2 })}</div>
-      <p class="small muted">Touche une station pour voir ses graphiques. <sup>*</sup> = cumul partiel : Météo-France ne fournit que les dernières 24 h, l'historique se construit au fil des jours${since ? ' (depuis le ' + new Date(since + 'T12:00').toLocaleDateString('fr-FR') + ')' : ''}.<br>Données : pluviomètres Météo-France, observations horaires.</p>`;
+      <p class="small muted">Touche une station pour voir ses graphiques. <sup>*</sup> = cumul partiel : Météo-France ne fournit que les dernières 24 h, l'historique se construit au fil des jours${since ? ' (depuis le ' + new Date(since + 'T12:00').toLocaleDateString('fr-FR') + ')' : ''}.<br>Données : pluviomètres Météo-France (observations horaires). La station virtuelle additionne la pluie mesurée par le radar Météo-France au-dessus du lieu, toutes les 5 minutes.</p>`;
     box.querySelectorAll('.crow').forEach(r => r.onclick = () => { relStation = +r.dataset.i; renderReleves(); });
     $('btnChoose').onclick = () => openStations(all, sts);
   }
@@ -1012,7 +1016,7 @@ const POINTS = [
     $('stList').innerHTML = all.map(x => {
       const d = sumHours(x, Date.now(), 24);
       return `<li><label><input type="checkbox" value="${esc(x.id)}" ${on.has(x.id) ? 'checked' : ''}>
-        <b>${esc(x.nom)}</b><span class="muted">${Math.round(x.km)} km · ${d.have ? fmtMm(d.s) + ' mm/24 h' : '–'}</span></label></li>`;
+        <b>${esc(x.nom)}</b><span class="muted">${x.virtuelle ? 'radar' : Math.round(x.km) + ' km'} · ${d.have ? fmtMm(d.s) + ' mm/24 h' : '–'}</span></label></li>`;
     }).join('');
     $('sheetSt').classList.add('open');
   }

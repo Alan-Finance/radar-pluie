@@ -421,6 +421,27 @@ def fetch_forecast(existing_run: str | None) -> tuple[str | None, dict[datetime,
 # ----------------------------------------------------------------------------------------------- état publié
 
 
+def point_values(frames: dict[datetime, np.ndarray]) -> dict[str, float]:
+    """Pluie (mm en 5 min) au-dessus du lieu de config.json : moyenne des pixels à moins d'1 km, par image radar."""
+    try:
+        lieu = json.loads(Path("config.json").read_text())["lieu"]
+    except Exception:
+        return {}
+    i = (lieu["lon"] - WEST) / (EAST - WEST) * WIDTH
+    j = (merc_y(NORTH) - merc_y(lieu["lat"])) / (merc_y(NORTH) - merc_y(SOUTH)) * HEIGHT
+    i0, j0 = int(i), int(j)
+    out = {}
+    for t, rate in frames.items():
+        if t.minute % 5:
+            continue
+        block = rate[max(0, j0 - 1) : j0 + 2, max(0, i0 - 1) : i0 + 2]
+        vals = block[np.isfinite(block)]
+        if vals.size:
+            out[t.strftime("%Y-%m-%dT%H:%MZ")] = round(float(vals.mean()) / 12.0, 3)  # mm/h -> mm en 5 min
+    log(f"Station virtuelle radar : {len(out)} relevé(s) de 5 min au-dessus de {lieu.get('nom')}")
+    return out
+
+
 def fname(t: datetime) -> str:
     return t.strftime("%Y%m%d%H%M")
 
@@ -470,7 +491,9 @@ def main() -> int:
 
     # Radar
     if KEY:
-        for t, rate in fetch_radar().items():
+        radar_now = fetch_radar()
+        point_mm = point_values(radar_now)
+        for t, rate in radar_now.items():
             latest = max([t] + [datetime.fromisoformat(k[1].replace("Z", "+00:00")) for k in frames if k[0] == "radar"])
             if t.minute % RADAR_STEP_MIN != 0 and t < latest:
                 continue  # on garde un pas de 10 min, plus la toute dernière image
@@ -538,12 +561,12 @@ def main() -> int:
         for p in (DATA / sub).glob("*.png") if (DATA / sub).exists() else []:
             if p not in listed:
                 p.unlink()
-    # Relevés de pluie des stations proches du lieu (config.json)
+    # Relevés de pluie des stations proches du lieu (config.json) + station virtuelle radar
     if KEY:
         try:
             import releves
 
-            releves.run(SESSION, OUT, PAGES_URL, log)
+            releves.run(SESSION, OUT, PAGES_URL, log, radar_point=locals().get('point_mm', {}))
         except Exception as exc:
             log(f"Relevés en échec : {safe_error(exc)}")
             traceback.print_exc()
