@@ -216,6 +216,16 @@
   .majinfo { text-align:center; font-size:11px; color:#8c99a6; margin-bottom:6px; }
   .dcard .date.eu { color:#8c99a6; }
   .detail-head p.src { font-size:11.5px; color:#8c99a6; margin-top:3px; }
+  .bh { font-size:15px; font-weight:600; margin:9px 2px 4px; }
+  .bcard { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); display:grid; grid-template-columns:.8fr 1.2fr 1.6fr; align-items:center; padding:7px 8px; gap:6px; }
+  .bcard.wet { background:#f2f8fd; }
+  .bc1 { display:flex; flex-direction:column; align-items:center; gap:2px; } .bc1 .ic { font-size:22px; } .bc1 b { font-size:15px; font-weight:500; }
+  .bc2 { display:grid; grid-template-columns:24px auto; column-gap:5px; align-items:center; } .bc2 svg { width:22px; height:22px; }
+  .bc2 .sp { font-size:14px; text-align:right; } .bc2 .dir { font-size:12.5px; color:var(--muted); } .bc2 .gu { font-size:14px; color:var(--red); font-weight:600; text-align:right; }
+  .bc3 { display:grid; grid-template-columns:16px auto; column-gap:6px; row-gap:3px; align-items:center; font-size:13.5px; }
+  .bc3 .i { display:flex; justify-content:center; } .bc3 .gauge { width:12px; height:20px; } .bc3 .drop { font-size:13px; }
+  .bc3 b { font-weight:600; } .bc3 small { color:#8c99a6; font-size:12px; }
+  .btotal { text-align:center; margin:12px 0 4px; font-size:14px; color:#2b6a9a; }
 </style>
 </head>
 <body>
@@ -791,7 +801,7 @@ const POINTS = [
     } catch {}
     const q = `latitude=${lieu.lat}&longitude=${lieu.lon}&timezone=Europe%2FParis&forecast_days=10`;
     try {
-      const HV = 'temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m';
+      const HV = 'temperature_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,dew_point_2m';
       const ensP = fetch(`https://ensemble-api.open-meteo.com/v1/ensemble?${q}&hourly=precipitation&models=ecmwf_ifs025`).then(r => r.json()).catch(() => null);
       const [f, mf] = await Promise.all([
         fetch(`https://api.open-meteo.com/v1/forecast?${q}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset&hourly=${HV},precipitation_probability,is_day`).then(r => r.json()),
@@ -806,7 +816,7 @@ const POINTS = [
       const days = f.daily.time.map((date, i) => {
         const hours = [];
         H.time.forEach((t, k) => { if (t.startsWith(date)) hours.push({ t, h: +t.slice(11, 13), mf: isMF(k), temp: pick('temperature_2m', k), mm: pick('precipitation', k), prob: H.precipitation_probability[k],
-          code: pick('weather_code', k), ws: pick('wind_speed_10m', k), wg: pick('wind_gusts_10m', k), wd: pick('wind_direction_10m', k), day: H.is_day[k] }); });
+          code: pick('weather_code', k), rh: pick('relative_humidity_2m', k), dp: pick('dew_point_2m', k), ws: pick('wind_speed_10m', k), wg: pick('wind_gusts_10m', k), wd: pick('wind_direction_10m', k), day: H.is_day[k] }); });
         const nMF = hours.filter(h => h.mf).length, fromMF = nMF >= hours.length - 2 && hours.length > 0;
         const wmean = hours.reduce((a, h) => a + (h.ws || 0), 0) / Math.max(1, hours.length);
         const hsum = hours.reduce((a, h) => a + (h.mm || 0), 0);
@@ -835,6 +845,28 @@ const POINTS = [
     }
   }
 
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const DIRS_DE = { N: 'du N', NE: 'du NE', E: "de l'E", SE: 'du SE', S: 'du S', SO: 'du SO', O: "de l'O", NO: 'du NO' };
+  const dirDe = (deg) => deg == null ? '' : DIRS_DE[dirTxt(deg)];
+  const mean = (a) => { const v = a.filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  // tranches de 2 h : temps le plus marquant, moyennes (température, vent, humidité), maxima (rafales, risque), cumul de pluie
+  function blocs(hrs) {
+    const out = [];
+    hrs.forEach(h => {
+      const h0 = Math.floor(h.h / 2) * 2;
+      let bk = out.find(x => x.h0 === h0);
+      if (!bk) { bk = { h0, h1: (h0 + 2) % 24, hs: [] }; out.push(bk); }
+      bk.hs.push(h);
+    });
+    return out.map(bk => {
+      const hs = bk.hs;
+      let vx = 0, vy = 0; hs.forEach(h => { if (h.wd != null) { vx += Math.sin(h.wd * Math.PI / 180) * (h.ws || 1); vy += Math.cos(h.wd * Math.PI / 180) * (h.ws || 1); } });
+      return { h0: bk.h0, h1: bk.h1, code: Math.max(...hs.map(h => h.code ?? 0)), day: hs.some(h => h.day), temp: mean(hs.map(h => h.temp)),
+        ws: mean(hs.map(h => h.ws)) || 0, wg: Math.max(...hs.map(h => h.wg || 0)), wd: (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360,
+        mm: hs.reduce((a, h) => a + (h.mm || 0), 0), prob: hs.some(h => h.prob != null) ? Math.max(...hs.map(h => h.prob || 0)) : null,
+        rh: mean(hs.map(h => h.rh)), dp: mean(hs.map(h => h.dp)) };
+    });
+  }
   const r5 = (v) => Math.max(5, Math.round((v || 0) / 5) * 5);
   function dayLabel(date) { const d = new Date(date + 'T12:00'); return { short: JOURS[d.getDay()], num: d.getDate(), long: `${JOURS_LONG[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}` }; }
 
@@ -881,12 +913,15 @@ const POINTS = [
           <p>Vent ${dirTxt(d.dir)} ${r5(d.wind)} km/h, rafales ${r5(d.gust)} km/h</p>
           <p>Soleil ${d.sunrise.slice(11)} – ${d.sunset.slice(11)}</p>
           <p class="src">Source : ${d.src === 'mf' ? 'Météo-France (AROME / ARPEGE)' : 'modèle européen ECMWF (au-delà de l’horizon Météo-France)'}</p></div></div>
-        <div class="hours-list">${hrs.map(h => `
-          <div class="hrow${h.mm >= 0.1 ? ' wet' : ''}"><span class="h">${h.h}h</span><span class="ic">${wIcon(h.code, !h.day)}</span><span class="t">${Math.round(h.temp)}°</span>
-            <span class="r">${h.mm >= 0.1 ? h.mm.toFixed(1) + ' mm' : '–'} <small>${h.prob != null ? h.prob + '%' : ''}</small></span>
-            <span class="w">${arrow(h.wd)}${Math.round(h.ws)} <span class="gu">${Math.round(h.wg)}</span> <small class="muted">km/h</small></span></div>`).join('')}
-          <div class="hrow" style="font-weight:600"><span></span><span></span><span>Total</span><span class="r">${fmt1(hrs.reduce((a, h) => a + (h.mm || 0), 0))} mm</span><span class="small muted">${dayIdx === 0 ? 'd’ici minuit' : 'sur la journée'}</span></div>
-        </div>`;
+        ${blocs(hrs).map(bk => `
+          <div class="bh">${pad2(bk.h0)}h00-${pad2(bk.h1)}h00</div>
+          <div class="bcard${bk.mm >= 0.1 ? ' wet' : ''}">
+            <div class="bc1"><span class="ic">${wIcon(bk.code, !bk.day)}</span><b>${bk.temp != null ? Math.round(bk.temp) + '°C' : '–'}</b></div>
+            <div class="bc2">${arrow(bk.wd)}<span class="sp">${Math.round(bk.ws)} km/h</span><span class="dir">${dirDe(bk.wd)}</span><span class="gu">${Math.round(bk.wg)} km/h</span></div>
+            <div class="bc3"><span class="i">${gauge(Math.min(1, bk.mm / 5))}</span><span><b>${bk.mm >= 0.05 ? fmt1(Math.round(bk.mm * 10) / 10) : '0'}mm</b> <small>(${bk.prob != null ? bk.prob : '–'}%)</small></span>
+              <span class="i drop">💧</span><span>${bk.rh != null ? '<b>' + Math.round(bk.rh) + '%</b>' : '–'}${bk.dp != null ? ' <small>- rosée ' + Math.round(bk.dp) + '°C</small>' : ''}</span></div>
+          </div>`).join('')}
+        <div class="btotal">Total pluie ${dayIdx === 0 ? 'd’ici minuit' : 'de la journée'} : <b>${fmt1(hrs.reduce((a, h) => a + (h.mm || 0), 0))} mm</b></div>`;
     }
   }
 
