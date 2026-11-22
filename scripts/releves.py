@@ -269,12 +269,19 @@ def update_quotidiennes(config: dict, prev: dict, log) -> dict:
         except Exception as exc:
             log(f"  département {dep} : téléchargement en échec ({type(exc).__name__})")
             continue
-        for row in csv.DictReader(io.StringIO(raw), delimiter=";"):
+        reader = csv.DictReader(io.StringIO(raw), delimiter=";")
+        log(f"  département {dep} : fichier {url.rsplit('/', 1)[-1]}, colonnes {reader.fieldnames[:8] if reader.fieldnames else '?'}")
+        nearest, max_date, nrows = None, "", 0
+        for row in reader:
+            nrows += 1
+            max_date = max(max_date, (row.get("AAAAMMJJ") or "").strip())
             try:
                 lat = float(row["LAT"].replace(",", ".")); lon = float(row["LON"].replace(",", "."))
             except (KeyError, ValueError):
                 continue
             d = distance_km(lieu["lat"], lieu["lon"], lat, lon)
+            if nearest is None or d < nearest[0]:
+                nearest = (round(d, 1), row.get("NOM_USUEL", "").strip())
             if d > radius:
                 continue
             date = (row.get("AAAAMMJJ") or "").strip()
@@ -285,7 +292,7 @@ def update_quotidiennes(config: dict, prev: dict, log) -> dict:
             st = stations.setdefault(sid, {"id": sid, "nom": row.get("NOM_USUEL", sid).strip().title(), "lat": lat, "lon": lon,
                                            "km": round(d, 1), "quotidien": True, "heures": {}, "jours": {}})
             st["jours"][f"{date[:4]}-{date[4:6]}-{date[6:8]}"] = {"mm": round(float(rr), 1), "n": 24}
-        log(f"  département {dep} : {sum(1 for s in stations.values())} pluviomètre(s) à moins de {radius:.0f} km jusqu'ici")
+        log(f"  département {dep} : {nrows} lignes, dernier jour {max_date}, poste le plus proche {nearest} ; {len(stations)} pluviomètre(s) retenu(s) jusqu'ici")
     useful = sorted((s for s in stations.values() if s["jours"]), key=lambda s: s["km"])
     for s in useful:
         s["jours"] = dict(sorted(s["jours"].items()))
