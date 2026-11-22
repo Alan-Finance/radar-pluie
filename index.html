@@ -184,6 +184,7 @@
   .stlist label { display:flex; align-items:center; gap:10px; width:100%; padding:10px 4px; cursor:pointer; }
   .stlist input { width:20px; height:20px; accent-color:var(--blue); flex:none; }
   .home { font-size:22px; line-height:1; filter:drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+  .favlist .del { border:0; background:#fdecec; border-radius:8px; width:38px; height:34px; font-size:16px; cursor:pointer; flex:none; margin-left:6px; }
 </style>
 </head>
 <body>
@@ -286,7 +287,7 @@
 </div></div>
 <div class="sheet" id="sheetFav"><div class="card">
   <h3>Mes points</h3><ul class="favlist" id="favList"></ul>
-  <p style="color:var(--muted);font-size:12px;margin:10px 0 0">Appui long sur la carte pour ajouter un point.</p>
+  <p style="color:var(--muted);font-size:12px;margin:10px 0 0">Appui long sur la carte pour ajouter un favori. 🗑️ pour le supprimer, ou touche un favori sur la carte pour le renommer.</p>
   <div class="actions"><button type="button" class="btn" id="favClose">Fermer</button></div>
 </div></div>
 
@@ -560,6 +561,7 @@ const POINTS = [
   const STORE_KEY = 'radar-pluie-points';
   const pointsLayer = L.layerGroup().addTo(map);
   let persos = []; try { persos = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch {}
+  try { if (!localStorage.getItem(STORE_KEY + '-init')) { persos = [...POINTS.map(p => ({ ...p })), ...persos]; localStorage.setItem(STORE_KEY, JSON.stringify(persos)); localStorage.setItem(STORE_KEY + '-init', '1'); } } catch {}
   const savePersos = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(persos)); } catch {} };
   function follow(p) { herePoint = L.latLng(p.lat, p.lon); hereLabel = 'à ' + p.nom; $('place').textContent = '⭐ ' + p.nom; updateHere(); }
   function drawPoints() {
@@ -570,7 +572,7 @@ const POINTS = [
       m.on('click', () => { follow(p); if (perso) openAdd(null, i); });
       pointsLayer.addLayer(m);
     };
-    POINTS.forEach(p => add(p, false)); persos.forEach((p, i) => add(p, true, i));
+    persos.forEach((p, i) => add(p, true, i));
   }
   let pendingLatLng = null, editIndex = null;
   function openAdd(latlng, index) {
@@ -592,12 +594,22 @@ const POINTS = [
     savePersos(); drawPoints(); closeAdd();
   };
   map.on('contextmenu', (e) => openAdd(e.latlng));
-  $('btnFav').onclick = () => {
-    const all = [...POINTS.map(p => ({ ...p, perso: false })), ...persos.map(p => ({ ...p, perso: true }))];
-    $('favList').innerHTML = all.map((p, i) => `<li data-i="${i}"><span>${p.perso ? '🟡' : '🔴'}</span><b>${esc(p.nom)}</b><span class="muted">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span></li>`).join('');
-    $('favList').querySelectorAll('li').forEach(li => li.onclick = () => { const p = all[+li.dataset.i]; map.setView([p.lat, p.lon], Math.max(map.getZoom(), 10)); follow(p); $('sheetFav').classList.remove('open'); });
-    $('sheetFav').classList.add('open');
-  };
+  function renderFav() {
+    $('favList').innerHTML = persos.length ? persos.map((p, i) => `<li data-i="${i}"><span>⭐</span><b>${esc(p.nom)}</b>
+        <span class="muted">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span>
+        <button class="del" data-del="${i}" title="Supprimer" aria-label="Supprimer ${esc(p.nom)}">🗑️</button></li>`).join('')
+      : '<li style="cursor:default" class="muted">Aucun favori. Fais un appui long sur la carte pour en ajouter un.</li>';
+    $('favList').querySelectorAll('li[data-i]').forEach(li => li.onclick = (e) => {
+      if (e.target.closest('.del')) return;
+      const p = persos[+li.dataset.i]; map.setView([p.lat, p.lon], Math.max(map.getZoom(), 10)); follow(p); $('sheetFav').classList.remove('open');
+    });
+    $('favList').querySelectorAll('.del').forEach(b => b.onclick = (e) => {
+      e.stopPropagation();
+      const i = +b.dataset.del, nom = persos[i].nom;
+      persos.splice(i, 1); savePersos(); drawPoints(); renderFav(); toast('« ' + nom + ' » supprimé');
+    });
+  }
+  $('btnFav').onclick = () => { renderFav(); $('sheetFav').classList.add('open'); };
   $('favClose').onclick = () => $('sheetFav').classList.remove('open');
   $('btnFond').onclick = () => {
     let cur = 'gris'; try { cur = localStorage.getItem('radar-pluie-fond') || 'gris'; } catch {}
