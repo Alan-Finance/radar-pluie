@@ -166,7 +166,7 @@ const POINTS = [
 /* ================================================================ */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const FRAME_MS = 550, REFRESH_MS = 3 * 60 * 1000;
+  const FRAME_MS = 900, END_PAUSE_MS = 1800, REFRESH_MS = 3 * 60 * 1000;
   let opacity = 0.8;
 
   const map = L.map('map', { zoomControl: false, maxZoom: 13, minZoom: 5 })
@@ -257,9 +257,15 @@ const POINTS = [
     $('strip').innerHTML = frames.map(() => '<span></span>').join('');
   }
 
-  function play() { playing = true; $('play').textContent = '❚❚'; clearInterval(timer);
-    timer = setInterval(() => show(idx >= frames.length - 1 ? 0 : idx + 1), FRAME_MS); }
-  function pause() { playing = false; $('play').textContent = '▶'; clearInterval(timer); }
+  // Lecture : une image toutes les FRAME_MS, avec une pause sur la dernière avant de reboucler.
+  function step() {
+    if (!playing) return;
+    const last = idx >= frames.length - 1;
+    show(last ? 0 : idx + 1);
+    timer = setTimeout(step, idx >= frames.length - 1 ? END_PAUSE_MS : FRAME_MS);
+  }
+  function play() { playing = true; $('play').textContent = '❚❚'; clearTimeout(timer); timer = setTimeout(step, FRAME_MS); }
+  function pause() { playing = false; $('play').textContent = '▶'; clearTimeout(timer); }
   $('play').onclick = () => playing ? pause() : play();
   $('prev').onclick = () => { pause(); show(idx - 1); };
   $('next').onclick = () => { pause(); show(idx + 1); };
