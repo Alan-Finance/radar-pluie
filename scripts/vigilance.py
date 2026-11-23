@@ -73,7 +73,8 @@ def run(session: requests.Session, out_dir: Path, pages_url: str, log) -> None:
     try:
         r = session.get(URL, timeout=60)
         if r.status_code in (401, 403):
-            raise RuntimeError(f"accès refusé (HTTP {r.status_code}) — abonnement « Données Publiques Vigilance » à vérifier")
+            body = r.text[:200].replace(session.headers.get("apikey", "") or "\x00", "***")
+            raise RuntimeError(f"accès refusé (HTTP {r.status_code}) — abonnement « Données Publiques Vigilance » à vérifier — réponse : {body}")
         r.raise_for_status()
         data = r.json()
         jours = parse(data, dept)
