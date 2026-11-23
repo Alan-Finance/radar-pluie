@@ -1288,8 +1288,9 @@ const POINTS = [
   setLieu(lieu, false);
   loadFrames(true);
   loadReleves();
-  setInterval(() => { loadFrames(false); loadVigilance(); }, REFRESH_MS);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadFrames(false); loadVigilance(); } });
+  // toutes les 3 min, et au retour sur l'appli : radar, vigilance et relevés (cadre « Dernier relevé » compris)
+  setInterval(() => { loadFrames(false); loadVigilance(); loadReleves(); }, REFRESH_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadFrames(false); loadVigilance(); loadReleves(); } });
   // la position GPS n'est demandée que sur appui du bouton 📍
 })();
 </script>
