@@ -8,7 +8,7 @@ L'utilisateur n'est pas développeur : réponses courtes, en français, adaptée
 - `index.html` : toute l'appli (HTML + CSS + JS, Leaflet via unpkg). Trois onglets : **Prévisions**, **Radar**, **Relevés**.
 - `scripts/update.py` : robot (Python) lancé par `.github/workflows/radar.yml` ; fabrique `data/frames.json` + images PNG radar/prévision ; appelle `scripts/releves.py`.
 - `scripts/releves.py` : relevés pluviomètres Météo-France (DPPaquetObs v2, horaire, 24 h d'historique côté API) + **station virtuelle radar** au-dessus du lieu (cumul des lames d'eau 5 min) → `data/releves.json`. Pluviomètres quotidiens data.gouv désactivés (`departements: []`).
-- `config.json` : lieu des relevés (Marcilly-sur-Vienne 47.0435, 0.5393), rayon stations 50 km.
+- `config.json` : lieu des relevés (Verneuil-le-Château 47.0394, 0.4583, depuis le 23/11/2026 ; avant Marcilly-sur-Vienne), rayon stations 50 km. Changer de lieu garde l’historique des stations ; la station virtuelle radar repart de zéro.
 - L'état (historique radar, relevés) est relu à chaque passage depuis le site publié (`PAGES_URL` = sortie de `actions/configure-pages`). Rien n'est commité par le robot.
 - Publication : GitHub Pages en mode « GitHub Actions » (upload-pages-artifact + deploy-pages, 2e essai si échec).
 

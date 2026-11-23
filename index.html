@@ -394,7 +394,7 @@
    POINTS     : tes points fixes, affichés avec leur nom sur la carte.
    Tu peux aussi ajouter des points depuis l'appli : appui long sur la carte. */
 // localisation habituelle (point fixe 🏠 sur la carte) : modifiable dans l'appli, gardée sur le téléphone
-let MAISON = { nom: 'Maison', ville: 'Marcilly-sur-Vienne', lat: 47.0435, lon: 0.5393 };
+let MAISON = { nom: 'Maison', ville: 'Verneuil-le-Château', lat: 47.0394, lon: 0.4583 };
 try { const m = JSON.parse(localStorage.getItem('radar-pluie-maison') || 'null'); if (m && m.lat) MAISON = m; } catch {}
 const VUE_DEPART = { lat: MAISON.lat, lon: MAISON.lon, zoom: 9 };
 const POINTS = [
@@ -761,7 +761,7 @@ const POINTS = [
   $('addHome').onclick = () => { if (pendingLatLng) setMaison(pendingLatLng.lat, pendingLatLng.lng); };
 
   // ================================================================ lieu (prévisions, relevés, « pluie ici »)
-  const LIEU_DEFAUT = { nom: MAISON.ville || 'Marcilly-sur-Vienne', lat: MAISON.lat, lon: MAISON.lon };
+  const LIEU_DEFAUT = { nom: MAISON.ville || 'Verneuil-le-Château', lat: MAISON.lat, lon: MAISON.lon };
   let lieu = LIEU_DEFAUT;
   try { const saved = JSON.parse(localStorage.getItem('radar-pluie-lieu') || 'null'); if (saved && saved.lat) lieu = saved; } catch {}
   function setLieu(l, save) {

@@ -77,10 +77,16 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
     radius = float(config.get("rayon_stations_km", 35))
     wanted = int(config.get("nb_stations", 5))
     now = datetime.now(UTC)
-    state = previous if previous.get("lieu", {}).get("nom") == lieu["nom"] else {}
-    if state and state.get("rayon_km") != radius:
-        state = dict(state, hours_done=[])  # nouveau rayon : on relit les 24 h pour les nouvelles stations
+    state = previous if previous.get("stations") else {}
+    moved = bool(state) and state.get("lieu", {}).get("nom") != lieu["nom"]
+    if state and (moved or state.get("rayon_km") != radius):
+        state = dict(state, hours_done=[])  # nouveau lieu ou rayon : on relit les 24 h pour les nouvelles stations
     stations: dict[str, dict] = {s["id"]: s for s in state.get("stations", [])}
+    if moved:  # nouveau lieu : on garde l'historique des stations, distances recalculées
+        for s in stations.values():
+            s["km"] = round(distance_km(lieu["lat"], lieu["lon"], s["lat"], s["lon"]), 1)
+        stations = {k: s for k, s in stations.items() if s["km"] <= radius}
+        log(f"Relevés : nouveau lieu {lieu['nom']}, historique des stations gardé")
     hours_done: set[str] = set(state.get("hours_done", []))
     status = "ok"
 

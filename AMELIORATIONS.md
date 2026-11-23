@@ -10,7 +10,7 @@
 ## Plus tard
 4. **Alerte pluie sur le téléphone** (« pluie à la maison dans 30 min »), même appli fermée : demande un système de notifications.
 5. **Pluviomètre connecté perso** (Ecowitt ou Netatmo, modèle Wi-Fi) : ajouter « Ma station » en tête des Relevés. Vérifier le modèle avant achat.
-6. **Relevés pour la maison de chacun** si l'appli est partagée avec des personnes qui habitent loin de Marcilly-sur-Vienne.
+6. **Relevés pour la maison de chacun** si l'appli est partagée avec des personnes qui habitent loin de Verneuil-le-Château.
 7. **Mettre à jour les outils GitHub du robot** quand GitHub retirera les versions actuelles (avertissement de version dans les journaux).
 
 ## Écarté
