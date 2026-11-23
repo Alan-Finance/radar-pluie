@@ -5,7 +5,7 @@ Dépôt GitHub : **AlanDoreau/radar-pluie** (ancien nom Alan-Finance, renommé l
 L'utilisateur n'est pas développeur : réponses courtes, en français, adaptées au téléphone ; il préfère que Claude fasse les manipulations.
 
 ## Architecture
-- `index.html` : toute l'appli (HTML + CSS + JS, Leaflet via unpkg). Trois onglets, dans cet ordre (choix validé) : **Relevés** 🌡️ (onglet d’ouverture), **Prévisions** 🌦️, **Radar** (icône SVG : mini-carte avec une perturbation).
+- `index.html` : toute l'appli (HTML + CSS + JS, Leaflet via unpkg). Trois onglets, dans cet ordre (choix validé) : **Relevés** (icône SVG : thermomètre + 2 gouttes, onglet d’ouverture), **Prévisions** 🌦️, **Radar** (icône SVG : mini-carte avec une perturbation).
 - `scripts/update.py` : robot (Python) lancé par `.github/workflows/radar.yml` ; fabrique `data/frames.json` + images PNG radar/prévision ; appelle `scripts/releves.py`.
 - `scripts/releves.py` : relevés pluviomètres Météo-France (DPPaquetObs v2, horaire, 24 h d'historique côté API) + **station virtuelle radar** au-dessus du lieu (cumul des lames d'eau 5 min) → `data/releves.json`. Pluviomètres quotidiens data.gouv désactivés (`departements: []`). Par heure et par station : rr, t, et si mesurés ff/fx (km/h), u, td, dd (`VERSION` dans releves.py : l'augmenter relit les 24 h une fois).
 - Station virtuelle du lieu (Verneuil-le-Château) : pluie = radar ; température, humidité, rosée, vent, rafales = modèle AROME via Open-Meteo (`meteofrance_seamless`, current + 24 h passées), côté navigateur, affiché comme « estimé ». Les stations les plus proches (L'Île-Bouchard, Saint-Épain) ne mesurent ni vent ni humidité.
