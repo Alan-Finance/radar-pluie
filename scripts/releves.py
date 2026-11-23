@@ -72,7 +72,7 @@ def station_names(session: requests.Session, log) -> dict[str, str]:
         return {}
 
 
-VERSION = 2  # 2 : vent ajouté (on relit les 24 h une fois)
+VERSION = 3  # 2 : vent ; 3 : humidité, rosée, direction (on relit les 24 h une fois)
 
 
 def update_releves(session: requests.Session, config: dict, previous: dict, log) -> dict:
@@ -145,6 +145,14 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
                 h["ff"] = round(ff * 3.6)
             if fx is not None:
                 h["fx"] = round(fx * 3.6)
+            # humidité (%), point de rosée (K → °C), direction du vent (degrés) : pour « Maintenant »
+            u, td, dd = _num(row.get("u")), _num(row.get("td")), _num(row.get("dd"))
+            if u is not None:
+                h["u"] = round(u)
+            if td is not None:
+                h["td"] = round(td - 273.15, 1) if td > 150 else td
+            if dd is not None:
+                h["dd"] = round(dd)
             st["heures"][key] = h
             found += 1
         hours_done.add(key)
