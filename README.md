@@ -27,7 +27,7 @@ Données : Météo-France, Licence Ouverte 2.0.
 
 | Quand | Quoi | Où |
 |---|---|---|
-| **Vers le 20 novembre 2027** | La clé Météo-France expire : en générer une nouvelle (Clé API, durée 31536000) et la coller dans le secret `METEOFRANCE_KEY` | portail-api.meteofrance.fr → Mes API, puis GitHub → Settings → Secrets and variables → Actions |
+| **Vers le 23 novembre 2027** | La clé Météo-France expire (régénérée le 23/11/2026 pour ajouter la Vigilance) : en générer une nouvelle (Clé API, durée 31536000) et la coller dans le secret `METEOFRANCE_KEY` | portail-api.meteofrance.fr → Mes API, puis GitHub → Settings → Secrets and variables → Actions |
 | **Avant le 21 novembre 2027** | La clé GitHub `radar-pluie-cron` expire : en recréer une (Actions : lecture et écriture, dépôt radar-pluie) et la recoller après `Bearer ` dans l'en-tête Authorization de la tâche | github.com/settings/personal-access-tokens, puis console.cron-job.org |
 | **Avant le 18 novembre 2028** | Les abonnements aux API Météo-France arrivent à échéance : cliquer sur « Renouveler » | portail-api.meteofrance.fr → Mes API |
 

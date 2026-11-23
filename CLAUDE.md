@@ -24,7 +24,7 @@ L'utilisateur n'est pas développeur : réponses courtes, en français, adaptée
 - Côté appli : maison 🏠, lieu, favoris, stations choisies, fond de carte et caches sont dans le `localStorage` du téléphone.
 
 ## Échéances
-Voir README (clé Météo-France ~20/11/2027, clé GitHub 21/11/2027, abonnements 18/11/2028).
+Voir README (clé Météo-France ~23/11/2027, clé GitHub 21/11/2027, abonnements 18/11/2028).
 
 ## À faire
 Voir `AMELIORATIONS.md` (liste validée avec Alan, idées écartées notées).

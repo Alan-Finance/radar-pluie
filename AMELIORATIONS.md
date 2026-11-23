@@ -1,7 +1,7 @@
 # Idées d'améliorations (à faire plus tard)
 
 ## Importantes
-1. **Vigilances Météo-France** : code en place (23/11/2026). Reste à régénérer la clé Météo-France après l'abonnement « Données Publiques Vigilance » et la remettre dans le secret GitHub (sinon HTTP 403 « Resource forbidden »).
+(aucune pour l'instant)
 
 ## Confort
 3. **Le temps qu'il fait maintenant** en haut de Prévisions (comme l'en-tête Météus) : température, humidité, vent moyen et rafale mesurés à la station Météo-France la plus proche.
@@ -13,6 +13,7 @@
 7. **Mettre à jour les outils GitHub du robot** quand GitHub retirera les versions actuelles (avertissement de version dans les journaux).
 
 ## Fait
+- Bandeau Vigilance Météo-France (orange/rouge, Indre-et-Loire) en haut de Prévisions (23/11/2026).
 - Alerte e-mail si l'appel du robot échoue : cron-job.org prévient après 3 échecs de suite, et quand ça repart (23/11/2026).
 
 ## Écarté
