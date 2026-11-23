@@ -873,6 +873,8 @@ const POINTS = [
   // Total prévu (somme des heures affichées dans le détail) et fourchette des scénarios (ensemble ECMWF)
   const mmTxt = (v) => v < 0.05 ? '0' : v < 10 ? fmt1(Math.round(v * 10) / 10) : String(Math.round(v));
   function mmTotal(d) { return mmTxt(d.sum) + 'mm'; }
+  // Liste 10 jours : arrondi au mm (le détail du jour garde les décimales)
+  function mmRound(d) { const v = d.sum; return (v < 0.05 ? '0' : v < 0.5 ? '<1' : String(Math.round(v))) + 'mm'; }
   function mmRange(d) {
     if (!d.range) return '';
     const lo = Math.min(d.range[0], d.sum), hi = Math.max(d.range[1], d.sum);
@@ -1006,7 +1008,7 @@ const POINTS = [
           <div class="info">
             <div class="cell"><span class="ic">${wxSvg(d.code, false, d.sum, 'day')}</span><div class="row2"><span class="tmin">${Math.round(d.tmin)}°C</span><span class="tmax">${Math.round(d.tmax)}°C</span></div></div>
             <div class="wind">${arrow(d.dir)}<span class="sp">${r5(d.wind)}km/h</span><span class="dir">${dirTxt(d.dir)}</span><span class="gu">${r5(d.gust)}km/h</span></div>
-            <div class="pluie">${gauge(frac)}<div><div class="mm">${mmTotal(d)}</div><div class="risk">Risque : ${d.prob ?? '–'}%</div></div></div>
+            <div class="pluie">${gauge(frac)}<div><div class="mm">${mmRound(d)}</div><div class="risk">Risque : ${d.prob ?? '–'}%</div></div></div>
           </div></div>`;
       }).join('');
       $('prevContent').querySelectorAll('.dcard').forEach(c => c.onclick = () => { dayIdx = +c.dataset.i; renderForecast(); window.scrollTo(0, 0); });

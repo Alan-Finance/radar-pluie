@@ -15,7 +15,7 @@ L'utilisateur n'est pas développeur : réponses courtes, en français, adaptée
 ## Données
 - Radar : Météo-France DPRadar (mosaïque LAME_D_EAU 500 m, HDF5) + DPPaquetRadar ; 1 h 30 de passé (PAST_HOURS), pas 10 min ; lissage gaussien ; palette 9 classes (violet ≥ 40 mm/h, choix validé).
 - Prévision radar : AROME-PI (WCS GRIB2, TOTAL_PRECIPITATION_RATE), runs complets seulement, +3 h, pas 15 min.
-- Prévisions 10 jours (côté navigateur) : Open-Meteo `meteofrance_seamless` (J1–J4) sinon `best_match` (ECMWF) ; fourchette = ensemble ECMWF (quartiles) affichée seulement dans le détail ; détail par tranches de 2 h ; vent arrondi à 5 km/h dans la liste (choix validé).
+- Prévisions 10 jours (côté navigateur) : Open-Meteo `meteofrance_seamless` (J1–J4) sinon `best_match` (ECMWF) ; fourchette = ensemble ECMWF (quartiles) affichée seulement dans le détail ; détail par tranches de 2 h ; vent arrondi à 5 km/h et pluie arrondie au mm (« <1mm » sous 0,5 mm) dans la liste, décimales gardées dans le détail du jour (choix validés).
 - Clé Météo-France : secret GitHub `METEOFRANCE_KEY` (en-tête `apikey`), abonnements : DPRadar, DPPaquetRadar, AROME, AROME-PI, DPPaquetObs v2. Ne jamais demander ni afficher la clé.
 
 ## Exécution
