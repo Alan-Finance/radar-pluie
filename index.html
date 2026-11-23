@@ -168,6 +168,8 @@
   .pill { margin:0 auto 12px; width:max-content; max-width:100%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.15); padding:8px 18px; color:var(--blue); font-style:italic; font-size:16px; }
   .sec { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); margin-bottom:14px; }
   .sech { background:#3f97b8; color:#fff; font-size:18px; padding:10px 14px; }
+  .sech small { display:block; font-size:13px; opacity:.92; margin-top:2px; }
+  .ntemp small, .nwind small { color:var(--muted); font-size:12px; } .nwind { font-size:15px; white-space:nowrap; } .nwind b { font-weight:600; }
   .nrow { padding:10px 14px; border-bottom:1px solid #e6eaee; }
   .nrow:last-child, .crow:last-child { border-bottom:0; }
   .nname, .cname { font-size:17px; } .nname small, .cname small { color:var(--muted); font-size:13px; }
@@ -1105,18 +1107,23 @@ const POINTS = [
     for (let i = 0; i < n; i++) { const d = J[parisDay(i)]; if (d) { s += d.mm; have++; } }
     return { s, have, n };
   }
-  function nightOf(st) {
-    // nuit de 22 h à 6 h (heure de Paris) : la dernière terminée, ou celle en cours avant 6 h
-    const now = new Date(); let end = new Date(now); end.setMinutes(0, 0, 0);
+  function nightEnd() {
+    // nuit de 22 h à 6 h (heure de Paris) : la dernière terminée
+    let end = new Date(); end.setMinutes(0, 0, 0);
     while (parisHour(end) !== 6) end = new Date(end - 36e5);
-    let s = 0, have = 0, tmin = null, tmax = null;
+    return end;
+  }
+  function nightOf(st) {
+    const end = nightEnd();
+    let s = 0, have = 0, tmin = null, tmax = null, fx = null;
     for (let i = 0; i < 8; i++) {
       const v = st.heures[hk(new Date(end - i * 36e5))];
       if (!v) continue;
       if (v.rr != null) { s += v.rr; have++; }
       if (v.t != null) { tmin = tmin == null ? v.t : Math.min(tmin, v.t); tmax = tmax == null ? v.t : Math.max(tmax, v.t); }
+      if (v.fx != null) fx = Math.max(fx ?? 0, v.fx);
     }
-    return { s, have, tmin, tmax };
+    return { s, have, tmin, tmax, fx };
   }
   const cell = (r) => `<div class="cv${r.s >= 0.1 ? ' wet' : ''}">${r.have ? fmtMm(r.s) : '–'}${r.have && r.have < r.n ? '<sup>*</sup>' : ''}</div>`;
   const fmtMm = (v) => v < 0.05 ? '0' : v < 10 ? fmt1(v) : String(Math.round(v));
@@ -1148,11 +1155,12 @@ const POINTS = [
     const head = loin + `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>
       <button class="choose" id="btnChoose">⚙️ Choisir mes stations (${sts.length}/${all.length})</button>`;
 
-    const night = `<div class="sec"><div class="sech">Analyse de la nuit (22h00 – 6h00)</div>${sts.map(st => {
+    const ne = nightEnd(), jr = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', timeZone: 'Europe/Paris' });
+    const night = `<div class="sec"><div class="sech">La nuit dernière<small>De ${jr(new Date(ne - 8 * 36e5))} 22h à ${jr(ne)} 6h : pluie, rafale la plus forte, températures</small></div>${sts.map(st => {
       const n = nightOf(st);
       return `<div class="nrow"><div class="nname">${esc(st.nom)} <small>${st.virtuelle ? '(station virtuelle)' : '(' + Math.round(st.km) + ' km)'}</small></div>
-        <div class="nvals"><span class="nmm">${gauge(Math.min(1, n.s / 20))}<b>${n.have ? fmtMm(n.s) + ' mm' : '–'}</b></span>
-        <span class="ntemp"><span style="color:var(--red)">${n.tmax != null ? fmt1(n.tmax) + '°C' : ''}</span><span style="color:#2b6a9a">${n.tmin != null ? fmt1(n.tmin) + '°C' : ''}</span></span></div></div>`;
+        <div class="nvals"><span class="nmm">${gauge(Math.min(1, n.s / 20))}<b>${n.have ? fmtMm(n.s) + ' mm' : '–'}</b></span>${n.fx != null ? `<span class="nwind">💨 <small>rafale</small> <b>${n.fx} km/h</b></span>` : ''}
+        <span class="ntemp">${n.tmax != null ? `<span><small>maxi</small> <span style="color:var(--red)">${fmt1(n.tmax)}°C</span></span>` : ''}${n.tmin != null ? `<span><small>mini</small> <span style="color:#2b6a9a">${fmt1(n.tmin)}°C</span>${n.tmin <= 0 ? ' ❄️' : ''}</span>` : ''}</span></div></div>`;
     }).join('')}</div>`;
 
     const cumul = `<div class="sec"><div class="sech">Cumul précipitations (en mm)</div>${sts.map((st, i) => `

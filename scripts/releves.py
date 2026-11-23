@@ -72,6 +72,9 @@ def station_names(session: requests.Session, log) -> dict[str, str]:
         return {}
 
 
+VERSION = 2  # 2 : vent ajouté (on relit les 24 h une fois)
+
+
 def update_releves(session: requests.Session, config: dict, previous: dict, log) -> dict:
     lieu = config["lieu"]
     radius = float(config.get("rayon_stations_km", 35))
@@ -79,7 +82,7 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
     now = datetime.now(UTC)
     state = previous if previous.get("stations") else {}
     moved = bool(state) and state.get("lieu", {}).get("nom") != lieu["nom"]
-    if state and (moved or state.get("rayon_km") != radius):
+    if state and (moved or state.get("rayon_km") != radius or state.get("version", 1) < VERSION):
         state = dict(state, hours_done=[])  # nouveau lieu ou rayon : on relit les 24 h pour les nouvelles stations
     stations: dict[str, dict] = {s["id"]: s for s in state.get("stations", [])}
     if moved:  # nouveau lieu : on garde l'historique des stations, distances recalculées
@@ -120,7 +123,7 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
             log(f"  {key} : réponse non JSON")
             continue
         rows = rows if isinstance(rows, list) else []
-        if rows and not stations and not hours_done:
+        if rows and not hours_done:
             log(f"  champs d'une observation : {sorted(rows[0].keys())}")
         found = 0
         for row in rows:
@@ -134,7 +137,15 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
             t = _num(row.get("t"))
             sid = str(row.get("geo_id_insee") or row.get("id_station") or row.get("id") or f"{lat:.3f},{lon:.3f}")
             st = stations.setdefault(sid, {"id": sid, "nom": row.get("name") or sid, "lat": lat, "lon": lon, "km": round(d, 1), "heures": {}})
-            st["heures"][key] = {"rr": rr, "t": round(t - 273.15, 1) if t is not None and t > 150 else t}
+            h = {"rr": rr, "t": round(t - 273.15, 1) if t is not None and t > 150 else t}
+            # vent (m/s → km/h) : moyen et rafale maxi de l'heure, seulement pour les stations équipées
+            ff = _num(row.get("ff"))
+            fx = next((v for v in (_num(row.get(k)) for k in ("fxi10", "fxi", "fxy")) if v is not None), None)
+            if ff is not None:
+                h["ff"] = round(ff * 3.6)
+            if fx is not None:
+                h["fx"] = round(fx * 3.6)
+            st["heures"][key] = h
             found += 1
         hours_done.add(key)
         log(f"  {key} : {len(rows)} stations en France, {found} près du lieu")
@@ -177,6 +188,7 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
         "lieu": lieu,
         "rayon_km": radius,
         "hours_done": sorted(hours_done),
+        "version": VERSION,
         "stations": useful[:wanted],
     }
 
