@@ -72,7 +72,7 @@ def station_names(session: requests.Session, log) -> dict[str, str]:
         return {}
 
 
-VERSION = 3  # 2 : vent ; 3 : humidité, rosée, direction (on relit les 24 h une fois)
+VERSION = 4  # 2 : vent ; 3 : humidité, rosée, direction ; 4 : rafale = champ « raf » (on relit les 24 h une fois)
 
 
 def update_releves(session: requests.Session, config: dict, previous: dict, log) -> dict:
@@ -140,7 +140,7 @@ def update_releves(session: requests.Session, config: dict, previous: dict, log)
             h = {"rr": rr, "t": round(t - 273.15, 1) if t is not None and t > 150 else t}
             # vent (m/s → km/h) : moyen et rafale maxi de l'heure, seulement pour les stations équipées
             ff = _num(row.get("ff"))
-            fx = next((v for v in (_num(row.get(k)) for k in ("fxi10", "fxi", "fxy")) if v is not None), None)
+            fx = next((v for v in (_num(row.get(k)) for k in ("raf", "fxi10", "fxi", "fxy")) if v is not None), None)
             if ff is not None:
                 h["ff"] = round(ff * 3.6)
             if fx is not None:
