@@ -50,7 +50,7 @@ WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
 DEG_PER_PX = 0.010  # ~ 750 m à la latitude de la France (images plus légères pour les téléphones)
 SMOOTH_SIGMA_PX = 1.3  # lissage façon Météus (0 = aucun)
 
-PAST_HOURS = 3.0
+PAST_HOURS = 1.5
 RADAR_STEP_MIN = 10
 FORECAST_HOURS = 3.0
 
