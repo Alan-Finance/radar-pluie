@@ -16,10 +16,11 @@ L'utilisateur n'est pas développeur : réponses courtes, en français, adaptée
 - Radar : Météo-France DPRadar (mosaïque LAME_D_EAU 500 m, HDF5) + DPPaquetRadar ; 1 h 30 de passé (PAST_HOURS), pas 10 min ; lissage gaussien ; palette 9 classes (violet ≥ 40 mm/h, choix validé).
 - Prévision radar : AROME-PI (WCS GRIB2, TOTAL_PRECIPITATION_RATE), runs complets seulement, +3 h, pas 15 min.
 - Prévisions 10 jours (côté navigateur) : Open-Meteo `meteofrance_seamless` (J1–J4) sinon `best_match` (ECMWF) ; fourchette = ensemble ECMWF (quartiles) affichée seulement dans le détail ; détail par tranches de 2 h ; vent arrondi à 5 km/h et pluie arrondie au mm (« <1mm » sous 0,5 mm) dans la liste, décimales gardées dans le détail du jour (choix validés).
-- Clé Météo-France : secret GitHub `METEOFRANCE_KEY` (en-tête `apikey`), abonnements : DPRadar, DPPaquetRadar, AROME, AROME-PI, DPPaquetObs v2. Ne jamais demander ni afficher la clé.
+- Vigilance : `scripts/vigilance.py` (API Données Publiques Vigilance, `cartevigilance/encours`) → `data/vigilance.json` pour le département `departement_vigilance` de config.json (37) ; bandeau en haut de Prévisions seulement en orange/rouge, lien vers vigilance.meteofrance.fr.
+- Clé Météo-France : secret GitHub `METEOFRANCE_KEY` (en-tête `apikey`), abonnements : DPRadar, DPPaquetRadar, AROME, AROME-PI, DPPaquetObs v2, Données Publiques Vigilance. La clé (JWT) ne couvre que les API abonnées au moment où elle est générée : après un nouvel abonnement, régénérer la clé et mettre à jour le secret. Ne jamais demander ni afficher la clé.
 
 ## Exécution
-- Lancé toutes les 10 min par **cron-job.org** (tâche « Radar Pluie », POST sur l'API `workflow_dispatch`, clé GitHub fine-grained `radar-pluie-cron`, Actions lecture/écriture). Pas de `schedule` GitHub (retiré volontairement).
+- Lancé toutes les 10 min par **cron-job.org** (tâche « Radar Pluie », POST sur l'API `workflow_dispatch`, clé GitHub fine-grained `radar-pluie-cron`, Actions lecture/écriture). Pas de `schedule` GitHub (retiré volontairement). Notification e-mail cron-job.org après 3 échecs d'appel de suite + au retour (ne voit pas les échecs internes du robot).
 - Côté appli : maison 🏠, lieu, favoris, stations choisies, fond de carte et caches sont dans le `localStorage` du téléphone.
 
 ## Échéances
