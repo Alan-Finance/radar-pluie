@@ -18,5 +18,6 @@
 
 ## Écarté
 - Impacts de foudre : données Météo-France payantes, sources gratuites non autorisées pour cet usage.
+- Vigilance jaune dans le bandeau : seulement orange et rouge.
 - Violet du radar plus tôt : on garde l'échelle actuelle (violet dès 40 mm/h).
 - Vent exact dans la liste à 10 jours : l'arrondi à 5 km/h convient (le détail par 2 h reste exact).
