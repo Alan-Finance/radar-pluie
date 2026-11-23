@@ -274,6 +274,11 @@
      le fond de carte et les images sont déjà chargés quand on ouvre l'onglet. */
   #page-radar:not(.active) { display:block; visibility:hidden; pointer-events:none; }
   .stale { background:#fff4e5; border-left:4px solid #f0a000; color:#7a4b00; font-size:12.5px; padding:7px 10px; margin:0 0 8px; }
+  svg.wx { width:1.25em; height:1.25em; display:block; overflow:visible; }
+  .daytabs button .ic svg.wx { margin:0 auto; width:28px; height:28px; }
+  .cell .ic svg.wx { width:28px; height:28px; }
+  .detail-head .big svg.wx { width:44px; height:44px; }
+  .bc1 .ic svg.wx { width:26px; height:26px; }
 </style>
 </head>
 <body>
@@ -797,6 +802,52 @@ const POINTS = [
   $('miniHere').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); };
 
   // ================================================================ prévisions 10 jours (Open-Meteo)
+
+  // ---------------------------------------------------------------- icônes météo dessinées (gouttes selon la quantité de pluie)
+  // n : nombre de gouttes/flocons (0 à 4) ; kind : 'clear' | 'part' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm'
+  function wxKind(code) {
+    if (code == null) return 'cloud';
+    if (code <= 1) return 'clear';
+    if (code === 2) return 'part';
+    if (code === 3) return 'cloud';
+    if (code === 45 || code === 48) return 'fog';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if (code >= 95) return 'storm';
+    return 'rain';
+  }
+  function dropsFor(mm, per) {  // per : 'day' ou 'bloc' (2 h)
+    const t = per === 'day' ? [0.2, 1, 5, 15] : [0.1, 0.5, 2, 5];
+    return mm == null ? 0 : t.filter(x => mm >= x).length;
+  }
+  function wxSvg(code, night, mm, per) {
+    let kind = wxKind(code);
+    let n = dropsFor(mm, per);
+    if ((kind === 'rain' || kind === 'storm') && n === 0) n = kind === 'storm' ? 1 : 0;
+    if (kind === 'rain' && n === 0) kind = (code >= 80 ? 'part' : 'cloud');   // risque de pluie mais quantité nulle
+    if ((kind === 'part' || kind === 'cloud' || kind === 'clear') && n > 0) kind = 'rain';
+    if (kind === 'snow' && n === 0) n = 1;
+    const sun = '<g stroke="#f5b400" stroke-width="1.6" stroke-linecap="round"><line x1="12" y1="2.5" x2="12" y2="4.5"/><line x1="4.6" y1="5.6" x2="6" y2="7"/><line x1="19.4" y1="5.6" x2="18" y2="7"/><line x1="2.5" y1="12" x2="4.5" y2="12"/></g><circle cx="12" cy="12" r="5" fill="#ffc21a"/>';
+    const sunBig = '<g stroke="#f5b400" stroke-width="2" stroke-linecap="round"><line x1="16" y1="3" x2="16" y2="6.5"/><line x1="16" y1="25.5" x2="16" y2="29"/><line x1="3" y1="16" x2="6.5" y2="16"/><line x1="25.5" y1="16" x2="29" y2="16"/><line x1="6.8" y1="6.8" x2="9.3" y2="9.3"/><line x1="22.7" y1="22.7" x2="25.2" y2="25.2"/><line x1="25.2" y1="6.8" x2="22.7" y2="9.3"/><line x1="9.3" y1="22.7" x2="6.8" y2="25.2"/></g><circle cx="16" cy="16" r="7" fill="#ffc21a"/>';
+    const moon = '<path d="M14.5 4.5a7.5 7.5 0 1 0 8 10.2A6 6 0 0 1 14.5 4.5z" fill="#9fb4c9"/>';
+    const moonBig = '<path d="M18 5a11 11 0 1 0 10 14A9 9 0 0 1 18 5z" fill="#9fb4c9"/>';
+    const cloudY = (kind === 'rain' || kind === 'snow' || kind === 'storm') ? -3 : 0;
+    const cloud = (dark) => `<g transform="translate(0 ${cloudY})"><path d="M9 25h15.5a5 5 0 0 0 .6-9.96A7 7 0 0 0 11.6 13.4 5.8 5.8 0 0 0 9 25z" fill="${dark ? '#a9b6c4' : '#c7d2dd'}"/></g>`;
+    let out = '';
+    if (kind === 'clear') out = night ? moonBig : sunBig;
+    else if (kind === 'part') out = (night ? moon : sun) + cloud(false);
+    else if (kind === 'cloud') out = cloud(false);
+    else if (kind === 'fog') out = cloud(false) + '<g stroke="#a9b6c4" stroke-width="1.8" stroke-linecap="round"><line x1="6" y1="27.5" x2="26" y2="27.5"/><line x1="9" y1="30.5" x2="23" y2="30.5"/></g>';
+    else {
+      const showSky = code >= 80 && code < 95;      // averses : soleil/lune derrière le nuage
+      out = (showSky ? (night ? moon : sun) : '') + cloud(kind === 'storm' || n >= 3);
+      const xs = { 1: [16], 2: [12.5, 19.5], 3: [10, 16, 22], 4: [8, 13, 18, 23] }[Math.max(1, Math.min(4, n))];
+      if (kind === 'snow') out += xs.map(x => `<text x="${x}" y="30.5" font-size="7" text-anchor="middle" fill="#6fa8dc">✱</text>`).join('');
+      else out += xs.map((x, i) => `<path d="M${x} ${24.5 + (i % 2) * 1.5}c-1.5 2.2-2.2 3.3-2.2 4.2a2.2 2.2 0 0 0 4.4 0c0-.9-.7-2-2.2-4.2z" fill="#3a8fd6"/>`).join('');
+      if (kind === 'storm') out += '<path d="M17.5 19l-4 6h3l-1.5 5.5 5-7h-3l2-4.5z" fill="#f5b400"/>';
+    }
+    return `<svg class="wx" viewBox="0 0 32 32" aria-hidden="true">${out}</svg>`;
+  }
+
   const WMO = {
     0: ['☀️', 'Ensoleillé', '🌙'], 1: ['🌤️', 'Peu nuageux', '🌙'], 2: ['⛅', 'Éclaircies', '☁️'], 3: ['☁️', 'Couvert'],
     45: ['🌫️', 'Brouillard'], 48: ['🌫️', 'Brouillard givrant'],
@@ -943,7 +994,7 @@ const POINTS = [
     if (!fc) return;
     renderMaj();
     $('daytabs').innerHTML = `<button data-i="-1" class="${dayIdx < 0 ? 'active' : ''}"><span class="ic">☰</span>10 jours</button>` +
-      fc.days.map((d, i) => { const l = dayLabel(d.date); return `<button data-i="${i}" class="${dayIdx === i ? 'active' : ''}"><span class="ic">${wIcon(d.code)}</span>${l.short} ${l.num}</button>`; }).join('');
+      fc.days.map((d, i) => { const l = dayLabel(d.date); return `<button data-i="${i}" class="${dayIdx === i ? 'active' : ''}"><span class="ic">${wxSvg(d.code, false, d.sum, 'day')}</span>${l.short} ${l.num}</button>`; }).join('');
     $('daytabs').querySelectorAll('button').forEach(b => b.onclick = () => { dayIdx = +b.dataset.i; renderForecast(); });
     const act = $('daytabs').querySelector('button.active'); if (act) act.scrollIntoView({ block: 'nearest', inline: 'center' });
     if (dayIdx < 0) {
@@ -953,7 +1004,7 @@ const POINTS = [
         return `<div class="dcard" data-i="${i}">
           <div class="date${d.src === 'eu' ? ' eu' : ''}"><small>${l.short.replace('.', '')}</small><b>${l.num}</b></div>
           <div class="info">
-            <div class="cell"><span class="ic">${wIcon(d.code)}</span><div class="row2"><span class="tmin">${Math.round(d.tmin)}°C</span><span class="tmax">${Math.round(d.tmax)}°C</span></div></div>
+            <div class="cell"><span class="ic">${wxSvg(d.code, false, d.sum, 'day')}</span><div class="row2"><span class="tmin">${Math.round(d.tmin)}°C</span><span class="tmax">${Math.round(d.tmax)}°C</span></div></div>
             <div class="wind">${arrow(d.dir)}<span class="sp">${r5(d.wind)}km/h</span><span class="dir">${dirTxt(d.dir)}</span><span class="gu">${r5(d.gust)}km/h</span></div>
             <div class="pluie">${gauge(frac)}<div><div class="mm">${mmTotal(d)}</div><div class="risk">Risque : ${d.prob ?? '–'}%</div></div></div>
           </div></div>`;
@@ -964,7 +1015,7 @@ const POINTS = [
       const nowH = new Date().getHours(), today = new Date().toISOString().slice(0, 10) === d.date || dayIdx === 0;
       const hrs = d.hours.filter(h => !(dayIdx === 0 && h.h < nowH));
       $('prevContent').innerHTML = `
-        <div class="detail-head"><span class="big">${wIcon(d.code)}</span><div>
+        <div class="detail-head"><span class="big">${wxSvg(d.code, false, d.sum, 'day')}</span><div>
           <h2>${l.long}</h2>
           <p>${wText(d.code)} · <b style="color:var(--text)">${Math.round(d.tmin)}°</b> / <b style="color:var(--red)">${Math.round(d.tmax)}°</b></p>
           <p><b style="color:#2b6a9a">Pluie : ${mmTotal(d).replace('mm', ' mm')}</b> sur la journée · risque ${d.prob ?? '–'}%${mmRange(d) ? '<br><small>(' + mmRange(d) + ')</small>' : ''}</p>
@@ -974,7 +1025,7 @@ const POINTS = [
         ${blocs(hrs).map(bk => `
           <div class="bh">${pad2(bk.h0)}h00-${pad2(bk.h1)}h00</div>
           <div class="bcard${bk.mm >= 0.1 ? ' wet' : ''}">
-            <div class="bc1"><span class="ic">${wIcon(bk.code, !bk.day)}</span><b>${bk.temp != null ? Math.round(bk.temp) + '°C' : '–'}</b></div>
+            <div class="bc1"><span class="ic">${wxSvg(bk.code, !bk.day, bk.mm, 'bloc')}</span><b>${bk.temp != null ? Math.round(bk.temp) + '°C' : '–'}</b></div>
             <div class="bc2">${arrow(bk.wd)}<span class="sp">${Math.round(bk.ws)} km/h</span><span class="dir">${dirDe(bk.wd)}</span><span class="gu">${Math.round(bk.wg)} km/h</span></div>
             <div class="bc3"><span class="i">${gauge(Math.min(1, bk.mm / 5))}</span><span><b>${bk.mm >= 0.05 ? fmt1(Math.round(bk.mm * 10) / 10) : '0'}mm</b> <small>(${bk.prob != null ? bk.prob : '–'}%)</small></span>
               <span class="i drop">💧</span><span>${bk.rh != null ? '<b>' + Math.round(bk.rh) + '%</b>' : '–'}${bk.dp != null ? ' <small>- rosée ' + Math.round(bk.dp) + '°C</small>' : ''}</span></div>
