@@ -570,6 +570,13 @@ def main() -> int:
         except Exception as exc:
             log(f"Relevés en échec : {safe_error(exc)}")
             traceback.print_exc()
+        # Vigilance Météo-France du département (bandeau en haut de Prévisions)
+        try:
+            import vigilance
+
+            vigilance.run(SESSION, OUT, PAGES_URL, log)
+        except Exception as exc:
+            log(f"Vigilance en échec : {safe_error(exc)}")
 
     n_r = sum(f["kind"] == "radar" for f in ordered)
     n_p = len(ordered) - n_r

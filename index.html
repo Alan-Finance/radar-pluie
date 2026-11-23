@@ -211,6 +211,9 @@
   .hrow { grid-template-columns:36px 28px 38px 1fr 1.1fr; padding:5px 8px; font-size:13.5px; }
   .hrow .ic { font-size:18px; } .hrow .w svg { width:15px; height:15px; }
   .maj { text-align:center; margin:2px 0 4px; }
+  .vigi { display:block; border-radius:8px; padding:9px 12px; margin:0 0 10px; font-size:15px; line-height:1.35; color:#1a1a1a; text-decoration:none; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+  .vigi b { font-weight:700; } .vigi small { font-size:13px; }
+  .vigi[hidden] { display:none; } .vigi.c3 { background:#ffa62b; } .vigi.c4 { background:#d62020; color:#fff; }
   .majpill { border:0; margin:0 auto; font-family:inherit; cursor:pointer; padding:6px 16px; font-size:15px; }
   .majpill .rf { font-style:normal; margin-left:6px; }
   .majinfo { text-align:center; font-size:11px; color:#8c99a6; margin-bottom:6px; }
@@ -285,6 +288,7 @@
 <section class="page active" id="page-prev"><div class="scroll">
   <div class="appbar">Prévisions</div>
   <div class="wrap">
+    <a class="vigi" id="vigi" target="_blank" rel="noopener" hidden></a>
     <div class="lieu">
       <form id="lieuForm"><input id="lieuInput" type="search" placeholder="Ville, village…" autocomplete="off" enterkeyhint="search"></form>
       <button class="gps" id="lieuGps" title="Utiliser ma position">📍</button>
@@ -1191,12 +1195,37 @@ const POINTS = [
   $('stCancel').onclick = () => $('sheetSt').classList.remove('open');
   $('sheetSt').addEventListener('click', (e) => { if (e.target.id === 'sheetSt') $('sheetSt').classList.remove('open'); });
 
+  // ---------------------------------------------------------------- vigilance Météo-France (bandeau orange / rouge)
+  const DEPTS = { '37': ['Indre-et-Loire', 'indre-et-loire'] };
+  async function loadVigilance() {
+    let v = null;
+    try { v = await (await fetch('data/vigilance.json?t=' + Date.now(), { cache: 'no-store' })).json(); } catch {}
+    const box = $('vigi'), now = Date.now();
+    const jours = ((v && v.jours) || []).filter(j => j.couleur >= 3 && (!j.fin || Date.parse(j.fin) > now));
+    if (!jours.length) { box.hidden = true; return; }
+    const max = Math.max(...jours.map(j => j.couleur));
+    const quand = (j) => j.debut && Date.parse(j.debut) > now ? 'demain' : 'aujourd’hui';
+    const parPhen = {};
+    jours.forEach(j => j.phenomenes.filter(x => x.couleur >= 3).forEach(x => {
+      const e = parPhen[x.nom] || (parPhen[x.nom] = { couleur: 0, q: [] });
+      e.couleur = Math.max(e.couleur, x.couleur); if (!e.q.includes(quand(j))) e.q.push(quand(j));
+    }));
+    const coul = (c) => c === 4 ? 'rouge' : 'orange';
+    const detail = Object.entries(parPhen).map(([nom, e]) => `${nom}${max === 4 && e.couleur === 3 ? ' (orange)' : ''} ${e.q.join(' et ')}`).join(' · ');
+    const d = DEPTS[v.departement] || [v.departement, ''];
+    box.className = 'vigi c' + max;
+    box.href = 'https://vigilance.meteofrance.fr/fr/' + d[1];
+    box.innerHTML = `${max === 4 ? '🔴' : '🟠'} <b>Vigilance ${coul(max)} – ${esc(d[0])}</b><br><small>${esc(detail)} · détails ›</small>`;
+    box.hidden = false;
+  }
+
   // ---------------------------------------------------------------- démarrage
+  loadVigilance();
   setLieu(lieu, false);
   loadFrames(true);
   loadReleves();
-  setInterval(() => loadFrames(false), REFRESH_MS);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFrames(false); });
+  setInterval(() => { loadFrames(false); loadVigilance(); }, REFRESH_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadFrames(false); loadVigilance(); } });
   // la position GPS n'est demandée que sur appui du bouton 📍
 })();
 </script>
