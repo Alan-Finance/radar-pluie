@@ -297,7 +297,7 @@
 </style>
 </head>
 <body>
-<section class="page active" id="page-prev"><div class="scroll">
+<section class="page" id="page-prev"><div class="scroll">
   <div class="appbar">Prévisions</div>
   <div class="wrap">
     <a class="vigi" id="vigi" target="_blank" rel="noopener" hidden></a>
@@ -315,7 +315,7 @@
   </div>
 </div></section>
 
-<section class="page" id="page-rel"><div class="scroll">
+<section class="page active" id="page-rel"><div class="scroll">
   <div class="appbar">Relevés</div>
   <div class="wrap" id="relContent"><p class="center muted">Chargement des relevés…</p></div>
 </div></section>
@@ -361,9 +361,9 @@
 
 <div class="card toast" id="toast"></div>
 <nav class="tabbar">
-  <button data-page="prev" class="active"><span>🌦️</span>Prévisions</button>
+  <button data-page="rel" class="active"><span>🌡️</span>Relevés</button>
+  <button data-page="prev"><span>🌦️</span>Prévisions</button>
   <button data-page="radar"><span>📡</span>Radar</button>
-  <button data-page="rel"><span>🧪</span>Relevés</button>
 </nav>
 
 <div class="sheet" id="sheetAdd"><form class="card" id="formAdd">
@@ -798,7 +798,7 @@ const POINTS = [
   }).catch(() => {});
 
   // ================================================================ navigation
-  let page = 'prev', lastPage = 'prev';
+  let page = 'rel', lastPage = 'rel';  // l'appli s'ouvre sur Relevés (1er onglet)
   function go(p) {
     if (p !== 'radar') lastPage = p;
     page = p;
