@@ -104,6 +104,7 @@
   .tabbar button { border:0; background:none; color:var(--blue); font-size:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer; }
   .tabbar button span { font-size:21px; line-height:1; }
   .tabbar .radico { width:23px; height:23px; display:block; }
+  .tabbar .relico { position:relative; } .relico i { position:absolute; font-style:normal; line-height:1; } .relico .d1 { font-size:12px; right:-9px; top:-2px; } .relico .d2 { font-size:9px; right:-14px; top:9px; }
   .tabbar button.active { background:var(--blue); color:#fff; }
   #page-radar .bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 8px); }
   #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 200px); }
@@ -362,7 +363,7 @@
 
 <div class="card toast" id="toast"></div>
 <nav class="tabbar">
-  <button data-page="rel" class="active"><span><svg class="radico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="1.5" width="5" height="14" rx="2.5" fill="#fff" stroke="#8a9aa8" stroke-width="1.2"/><rect x="6.1" y="6" width="1.8" height="10" rx=".9" fill="#e53935"/><circle cx="7" cy="18" r="3.8" fill="#e53935" stroke="#8a9aa8" stroke-width="1.2"/><path d="M17.8 1.5 C20.4 5.2 21.9 7.4 21.9 9.4 A4.1 4.1 0 0 1 13.7 9.4 C13.7 7.4 15.2 5.2 17.8 1.5 Z" fill="#4db2f0" stroke="#fff" stroke-width="1"/><path d="M16.6 12.6 C18.7 15.5 19.9 17.3 19.9 18.9 A3.3 3.3 0 0 1 13.3 18.9 C13.3 17.3 14.5 15.5 16.6 12.6 Z" fill="#4db2f0" stroke="#fff" stroke-width="1"/></svg></span>Relevés</button>
+  <button data-page="rel" class="active"><span class="relico">🌡️<i class="d1">💧</i><i class="d2">💧</i></span>Relevés</button>
   <button data-page="prev"><span>🌦️</span>Prévisions</button>
   <button data-page="radar"><span><svg class="radico" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="21" rx="4" fill="#eef1e4" stroke="#fff" stroke-width="1.5"/><path d="M2 15 C6 13 8 17 12 15 S18 12 22 14" fill="none" stroke="#9cc7e6" stroke-width="1.4"/><path d="M5 3 L9 9 L7 14 M15 22 L17 16 L22 13" fill="none" stroke="#d9d2bd" stroke-width="1"/><path d="M4 9 C6 4 13 3 17 5 C21 7 21 12 18 14 C15 16 9 16 6 14 C4 13 3 11 4 9 Z" fill="#5cc35c" opacity=".9"/><path d="M7 9 C8 6 13 5.5 15.5 7 C18 8.5 17.5 11.5 15 12.5 C12.5 13.5 9 13 7.5 11.5 C6.8 10.8 6.7 9.8 7 9 Z" fill="#f2d33a"/><path d="M10 9.2 C10.5 7.8 13 7.6 14 8.6 C15 9.6 14.3 11 13 11.3 C11.5 11.6 9.6 10.8 10 9.2 Z" fill="#e8452c"/></svg></span>Radar</button>
 </nav>
