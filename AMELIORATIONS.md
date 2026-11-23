@@ -1,5 +1,10 @@
 # Idées d'améliorations (à faire plus tard)
 
+## Prévu (ce soir ou demain)
+- **Relevés toutes les 6 minutes** (observations Météo-France infra-horaires, 24 h gardées) : « Maintenant » presque en direct + pluie des 6 dernières minutes. Vérifier d'abord si c'est couvert par l'abonnement Paquet Observations actuel.
+- **Historique climatologique** (API Données climatologiques, nouvel abonnement + clé à régénérer) : cumuls 7 j / 30 j remplis tout de suite, comparaison à la normale du mois.
+- Écarté pour l'instant : AROME en direct (Open-Meteo donne déjà les mêmes données Météo-France).
+
 ## Plus tard
 1. **Alerte pluie sur le téléphone** (« pluie à la maison dans 30 min »), même appli fermée : demande un système de notifications.
 2. **Pluviomètre connecté perso** (Ecowitt ou Netatmo, modèle Wi-Fi) : ajouter « Ma station » en tête des Relevés. Vérifier le modèle avant achat.
