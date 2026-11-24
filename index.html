@@ -425,7 +425,7 @@ const POINTS = [
   const FRAME_MS = 900, END_PAUSE_MS = 1800, REFRESH_MS = 3 * 60 * 1000;
   let opacity = 0.8;
 
-  const map = L.map('map', { zoomControl: false, maxZoom: 13, minZoom: 5 })
+  const map = L.map('map', { zoomControl: false, maxZoom: 16, minZoom: 5 })
     .setView(VUE_DEPART ? [VUE_DEPART.lat, VUE_DEPART.lon] : [46.6, 2.4], VUE_DEPART ? VUE_DEPART.zoom : 6);
   // ---------------------------------------------------------------- fonds de carte (bouton 🗺️)
   const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
@@ -434,6 +434,7 @@ const POINTS = [
   const FONDS = {
     gris:      { nom: 'Gris clair', emoji: '⬜', base: ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
     sombre:    { nom: 'Sombre', emoji: '⬛', base: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
+    ign:       { nom: 'Plan IGN (détaillé)', emoji: '🏡', base: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', attr: '&copy; <a href="https://www.ign.fr/">IGN</a> – Géoplateforme', max: 19 },
     plan:      { nom: 'Plan (routes)', emoji: '🛣️', base: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France', max: 19, sub: 'abc' },
     relief:    { nom: 'Relief', emoji: '⛰️', base: ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 19 },
     satellite: { nom: 'Satellite', emoji: '🛰️', base: ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', attr: 'Imagerie &copy; Esri, Maxar, Earthstar Geographics', max: 19 },
