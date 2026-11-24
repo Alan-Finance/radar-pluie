@@ -1262,7 +1262,7 @@ const POINTS = [
     };
     const now = `<div class="nowwrap">${sts.map(nowCard).join('')}</div>`;
 
-    const night = `<div class="sec"><div class="sech">La nuit dernière<small>De ${jr(new Date(ne - 8 * 36e5))} 22h à ${jr(ne)} 6h : pluie, rafale la plus forte, températures</small></div>${sts.map(st => {
+    const night = `<div class="sec"><div class="sech">La nuit dernière (22h–6h)</div>${sts.map(st => {
       const n = nightOf(st);
       return `<div class="nrow"><div class="nname">${esc(st.nom)} <small>${st.virtuelle ? '(station virtuelle)' : '(' + Math.round(st.km) + ' km)'}</small></div>
         <div class="nvals"><span class="nmm">${gauge(Math.min(1, n.s / 20))}<b>${n.have ? fmtMm(n.s) + ' mm' : '–'}</b></span>${n.fx != null ? `<span class="nwind">💨 <small>rafale</small> <b>${n.fx} km/h</b></span>` : ''}
