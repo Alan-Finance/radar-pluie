@@ -1,6 +1,6 @@
 # Radar Pluie — mémo pour Claude
 
-Appli météo perso d'Alan (en français), publiée sur **https://alandoreau.github.io/radar-pluie/**.
+Appli météo perso d'Alan (en français), nommée **Éclaircie** depuis le 24/11/2026 (avant : Radar Pluie ; le dépôt, l'adresse et les clés localStorage gardent « radar-pluie »), publiée sur **https://alandoreau.github.io/radar-pluie/**.
 Dépôt GitHub : **AlanDoreau/radar-pluie** (ancien nom Alan-Finance, renommé le 22/11/2026).
 L'utilisateur n'est pas développeur : réponses courtes, en français, adaptées au téléphone ; il préfère que Claude fasse les manipulations.
 

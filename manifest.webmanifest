@@ -1,6 +1,6 @@
 {
-  "name": "Radar Pluie",
-  "short_name": "Radar Pluie",
+  "name": "Éclaircie",
+  "short_name": "Éclaircie",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#5bb8f5",

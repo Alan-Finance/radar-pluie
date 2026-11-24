@@ -1,4 +1,4 @@
-# Radar Pluie
+# Éclaircie (ex-Radar Pluie)
 
 **Adresse de l'appli : https://alandoreau.github.io/radar-pluie/**
 
