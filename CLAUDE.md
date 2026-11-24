@@ -23,7 +23,7 @@ L'utilisateur n'est pas développeur : réponses courtes, en français, adaptée
 
 ## Exécution
 - Lancé toutes les 10 min par **cron-job.org** (tâche « Radar Pluie », POST sur l'API `workflow_dispatch`, clé GitHub fine-grained `radar-pluie-cron`, Actions lecture/écriture). Pas de `schedule` GitHub (retiré volontairement). Notification e-mail cron-job.org après 3 échecs d'appel de suite + au retour (ne voit pas les échecs internes du robot).
-- Onglet Radar (24/11/2026, façon Pleinchamp) : fond par défaut « Détaillé » = OpenStreetMap standard (bascule forcée une fois via `radar-pluie-fond-v2`), zoom max 16, fond « Plan IGN » en plus ; panneau du temps : lecture/pause + ↻ (retour à maintenant + recharge), date + heure, barre verte épaisse, carrés de pluie au point gardés au-dessus (demande d'Alan), trait rouge = maintenant, partie prévision hachurée ; animation 600 ms/image.
+- Onglet Radar (24/11/2026, façon Pleinchamp) : fond par défaut « Détaillé » = OpenStreetMap standard (bascule forcée une fois via `radar-pluie-fond-v2`), zoom max 16, fond « Plan IGN » en plus ; panneau du temps : lecture/pause + ↻ (retour à maintenant + recharge), date + heure, barre verte épaisse, carrés de pluie au point gardés au-dessus (demande d'Alan), sans phrase en dessous (les couleurs suffisent, choix d'Alan), trait rouge = maintenant, partie prévision hachurée ; animation 600 ms/image.
 - Côté appli : maison 🏠, lieu, favoris, stations choisies, fond de carte et caches sont dans le `localStorage` du téléphone.
 
 ## Échéances
