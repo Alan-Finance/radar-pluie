@@ -423,15 +423,24 @@ const POINTS = [
     if (f.labels) { st.sources.labels = { type: 'raster', tiles: tiles(f.labels), tileSize: 256, maxzoom: f.max }; st.layers.push({ id: 'labels', type: 'raster', source: 'labels' }); }
     return st;
   }
-  let styleReady = false;
-  function setFond(key) {
+  let styleReady = false, fondKey = null, vecOk = false, vecErr = 0, vecTimer = null;
+  function setFond(key, save = true) {
     if (!FONDS[key]) key = 'osm';
     const f = FONDS[key];
-    styleReady = false;
+    styleReady = false; fondKey = key; vecOk = false; vecErr = 0; clearTimeout(vecTimer);
     map.setStyle(f.style || rasterStyle(f), { diff: false });
     document.body.classList.toggle('dark', key === 'sombre' || key === 'satellite');
-    try { localStorage.setItem('radar-pluie-fond', key); } catch {}
+    if (save) { try { localStorage.setItem('radar-pluie-fond', key); } catch {} }
+    // Secours : si la carte détaillée (OpenFreeMap) ne répond pas, passer sur « Relief » (sans l'enregistrer : on réessaie à la prochaine ouverture).
+    if (key === 'osm') vecTimer = setTimeout(() => { if (!vecOk) secours(); }, 10000);
   }
+  function secours() {
+    if (fondKey !== 'osm') return;
+    clearTimeout(vecTimer); setFond('relief', false);
+    toast('Carte détaillée indisponible : fond Relief en attendant', 5000);
+  }
+  map.on('sourcedata', (e) => { if (fondKey === 'osm' && e.tile && e.sourceId !== 'radar') vecOk = true; });
+  map.on('error', (e) => { if (fondKey === 'osm' && !vecOk && (!styleReady || (e.sourceId && e.sourceId !== 'radar')) && ++vecErr >= 3) secours(); });
   // Fond par défaut : OpenStreetMap détaillé (comme Pleinchamp), appliqué une fois même si un autre fond était enregistré.
   let fondInitial = 'osm';
   try { if (localStorage.getItem('radar-pluie-fond-v2')) fondInitial = localStorage.getItem('radar-pluie-fond') || 'osm'; else localStorage.setItem('radar-pluie-fond-v2', '1'); } catch {}
