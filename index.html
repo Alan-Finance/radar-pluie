@@ -11,8 +11,8 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <title>Radar Pluie</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
   :root { --accent:#1f6fb8; --text:#16212e; --muted:#5f6d7d; --panel:rgba(255,255,255,.94); --line:rgba(20,40,60,.12); --future:#1f6fb8; --pc:#2f6b4f; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -66,7 +66,6 @@
   #page-radar .here { display:none; }  /* la phrase est retirée : les carrés de couleur suffisent (choix d'Alan) */
   .here { font-size:11.5px; line-height:1.3; color:var(--muted); margin:3px 0 0 6px; min-height:13px; }
   .here b { color:var(--text); }
-  #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 105px); }
 
   .toast { position:fixed; z-index:1700; left:50%; transform:translateX(-50%); top:calc(env(safe-area-inset-top) + 64px);
     padding:10px 14px; font-size:13px; display:none; max-width:calc(100% - 24px); }
@@ -76,13 +75,12 @@
   @keyframes pulse { 70% { box-shadow:0 0 0 14px rgba(31,142,241,0); } 100% { box-shadow:0 0 0 0 rgba(31,142,241,0); } }
   .pin { width:12px; height:12px; border-radius:50%; background:#e0322f; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.45); }
   .pin.perso { background:#f2b400; }
-  .leaflet-tooltip.pinlabel { background:rgba(255,255,255,.92); color:#111; border:0; border-radius:6px; padding:1px 6px; font-weight:700; font-size:12px; box-shadow:0 1px 3px rgba(0,0,0,.25); }
-  .leaflet-tooltip.pinlabel::before { display:none; }
-  .leaflet-control-attribution { font-size:9px; }
+  .mk { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .pinlabel { background:rgba(255,255,255,.92); color:#111; border-radius:6px; padding:1px 6px; font-weight:700; font-size:12px; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .maplibregl-ctrl-attrib { font-size:9px; }
   body.dark #map { background:#222; }
   .top .iconbtn { width:42px; height:42px; }
   @media (max-width:380px) { .top { gap:6px; } .top .iconbtn { width:38px; height:38px; font-size:17px; } }
-  .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + 200px); }
 
   .sheet { position:fixed; z-index:1600; inset:0; background:rgba(0,0,0,.35); display:none; align-items:flex-end; justify-content:center; }
   .sheet.open { display:flex; }
@@ -110,7 +108,7 @@
   .tabbar .relico { position:relative; } .relico i { position:absolute; font-style:normal; line-height:1; } .relico .d1 { font-size:12px; right:-9px; top:-2px; } .relico .d2 { font-size:9px; right:-14px; top:9px; }
   .tabbar button.active { background:var(--blue); color:#fff; }
   #page-radar .bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 8px); }
-  #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 200px); }
+  #page-radar .maplibregl-ctrl-bottom-right { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 100px); }
   .scroll { position:fixed; left:0; right:0; top:0; bottom:calc(var(--tabbar) + env(safe-area-inset-bottom)); overflow-y:auto; -webkit-overflow-scrolling:touch; background:var(--bg); }
   .appbar { position:sticky; top:0; z-index:10; background:#fff; border-bottom:3px solid var(--blue); padding:calc(env(safe-area-inset-top) + 12px) 16px 12px; text-align:center; font-size:20px; font-weight:600; }
   .wrap { max-width:640px; margin:0 auto; padding:12px 12px 24px; }
@@ -395,33 +393,46 @@ const POINTS = [
   const FRAME_MS = 600, END_PAUSE_MS = 1800, REFRESH_MS = 3 * 60 * 1000;
   let opacity = 0.8;
 
-  const map = L.map('map', { zoomControl: false, maxZoom: 16, minZoom: 5 })
-    .setView(VUE_DEPART ? [VUE_DEPART.lat, VUE_DEPART.lon] : [46.6, 2.4], VUE_DEPART ? VUE_DEPART.zoom : 6);
+  // Carte vectorielle MapLibre (fluide au zoom). Niveaux de zoom MapLibre = niveaux Leaflet − 1 (tuiles de 512 px).
+  const Z = (z) => z - 1, zoomL = () => map.getZoom() + 1;
+  const MF_ATTR = 'Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)';
+  const map = new maplibregl.Map({
+    container: 'map', style: { version: 8, sources: {}, layers: [] },
+    center: [VUE_DEPART.lon, VUE_DEPART.lat], zoom: Z(VUE_DEPART.zoom), minZoom: Z(5), maxZoom: Z(16),
+    dragRotate: false, pitchWithRotate: false, touchPitch: false, attributionControl: false, fadeDuration: 0,
+  });
+  map.touchZoomRotate.disableRotation(); map.keyboard.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: MF_ATTR }), 'bottom-right');
+  const setView = (lat, lon, z) => map.jumpTo({ center: [lon, lat], zoom: Z(z) });
   // ---------------------------------------------------------------- fonds de carte (bouton 🗺️)
   const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
   const ESRI_ATTR = 'Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap';
-  const MF_ATTR = ' · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)';
   const FONDS = {
-    osm:       { nom: 'Détaillé (comme Pleinchamp)', emoji: '🌳', base: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', max: 19 },
+    osm:       { nom: 'Détaillé (comme Pleinchamp)', emoji: '🌳', style: 'https://tiles.openfreemap.org/styles/liberty' },
     gris:      { nom: 'Gris clair', emoji: '⬜', base: ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
     sombre:    { nom: 'Sombre', emoji: '⬛', base: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
-    ign:       { nom: 'Plan IGN (détaillé)', emoji: '🏡', base: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', attr: '&copy; <a href="https://www.ign.fr/">IGN</a> – Géoplateforme', max: 19 },
+    ign:       { nom: 'Plan IGN', emoji: '🏡', base: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', attr: '&copy; <a href="https://www.ign.fr/">IGN</a> – Géoplateforme', max: 19 },
     plan:      { nom: 'Plan (routes)', emoji: '🛣️', base: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France', max: 19, sub: 'abc' },
     relief:    { nom: 'Relief', emoji: '⛰️', base: ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 19 },
     satellite: { nom: 'Satellite', emoji: '🛰️', base: ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', attr: 'Imagerie &copy; Esri, Maxar, Earthstar Geographics', max: 19 },
   };
-  map.createPane('labels'); map.getPane('labels').style.zIndex = 650; map.getPane('labels').style.pointerEvents = 'none';
-  let baseLayer = null, labelLayer = null;
+  function rasterStyle(f) {
+    const tiles = (u) => u.includes('{s}') ? (f.sub || 'abc').split('').map(x => u.replace('{s}', x)) : [u];
+    const st = { version: 8, sources: { base: { type: 'raster', tiles: tiles(f.base), tileSize: 256, maxzoom: f.max, attribution: f.attr } },
+      layers: [{ id: 'base', type: 'raster', source: 'base' }] };
+    if (f.labels) { st.sources.labels = { type: 'raster', tiles: tiles(f.labels), tileSize: 256, maxzoom: f.max }; st.layers.push({ id: 'labels', type: 'raster', source: 'labels' }); }
+    return st;
+  }
+  let styleReady = false;
   function setFond(key) {
-    const f = FONDS[key] || FONDS.osm;
-    if (baseLayer) map.removeLayer(baseLayer);
-    if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
-    baseLayer = L.tileLayer(f.base, { maxZoom: f.max, subdomains: f.sub || 'abc', attribution: f.attr + MF_ATTR, keepBuffer: 4, updateWhenIdle: false }).addTo(map);
-    if (f.labels) labelLayer = L.tileLayer(f.labels, { maxZoom: f.max, pane: 'labels', keepBuffer: 4, updateWhenIdle: false }).addTo(map);
+    if (!FONDS[key]) key = 'osm';
+    const f = FONDS[key];
+    styleReady = false;
+    map.setStyle(f.style || rasterStyle(f), { diff: false });
     document.body.classList.toggle('dark', key === 'sombre' || key === 'satellite');
     try { localStorage.setItem('radar-pluie-fond', key); } catch {}
   }
-  // Fond par défaut : OpenStreetMap standard (comme Pleinchamp), appliqué une fois même si un autre fond était enregistré.
+  // Fond par défaut : OpenStreetMap détaillé (comme Pleinchamp), appliqué une fois même si un autre fond était enregistré.
   let fondInitial = 'osm';
   try { if (localStorage.getItem('radar-pluie-fond-v2')) fondInitial = localStorage.getItem('radar-pluie-fond') || 'osm'; else localStorage.setItem('radar-pluie-fond-v2', '1'); } catch {}
   setFond(fondInitial);
@@ -434,26 +445,41 @@ const POINTS = [
   let meta = null, frames = [], images = {}, idx = 0, playing = false, timer = null, nowIdx = 0;
   const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
 
-  // Deux calques seulement (affiché + suivant) au lieu d'un calque par image : beaucoup plus fluide sur téléphone.
-  let layerA = null, layerB = null, front = null, wanted = '';
-  function ensureLayers() {
-    if (layerA) { if (meta) { layerA.setBounds(L.latLngBounds(meta.bounds)); layerB.setBounds(L.latLngBounds(meta.bounds)); } return; }
-    const blank = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-    layerA = L.imageOverlay(blank, meta.bounds, { opacity: 0, className: 'rain', interactive: false }).addTo(map);
-    layerB = L.imageOverlay(blank, meta.bounds, { opacity: 0, className: 'rain', interactive: false }).addTo(map);
-    front = layerA;
-  }
+  // Une seule image radar sur la carte (source « image » de MapLibre), placée sous les noms de lieux pour qu'ils restent lisibles.
+  let radarUrl = null;
+  const radarCoords = () => { const [[s, w], [n, e]] = meta.bounds; return [[w, n], [e, n], [e, s], [w, s]]; };
+  const firstLabel = () => { const l = map.getStyle().layers.find(l => l.type === 'symbol' || l.id === 'labels'); return l && l.id; };
+  function ensureLayers() { if (meta && frames.length) display(frames[idx]); }
   function display(f) {
-    ensureLayers();
-    wanted = f.file;
-    if (front._url === f.file) { front.setOpacity(opacity); return; }
-    const back = front === layerA ? layerB : layerA;
-    const swap = () => { if (wanted !== f.file) return; back.setOpacity(opacity); front.setOpacity(0); front = back; };
-    if (back._url === f.file) return swap();
-    back.setOpacity(0);
-    back.once('load', swap);
-    back.setUrl(f.file);
+    if (!meta || !styleReady || !f) return;
+    const src = map.getSource('radar');
+    if (!src) {
+      map.addSource('radar', { type: 'image', url: f.file, coordinates: radarCoords() });
+      map.addLayer({ id: 'radar', type: 'raster', source: 'radar', paint: { 'raster-opacity': opacity, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstLabel());
+      radarUrl = f.file; radarBusy = true; busyTimer = setTimeout(radarLoaded, 3000);
+    } else if (radarUrl !== f.file) {
+      // une image à la fois : si la précédente charge encore, on garde seulement la dernière demandée
+      if (radarBusy) { radarNext = f; return; }
+      radarBusy = true; radarUrl = f.file; clearTimeout(busyTimer); busyTimer = setTimeout(radarLoaded, 3000);
+      src.updateImage({ url: f.file, coordinates: radarCoords() });
+    }
   }
+  let radarBusy = false, radarNext = null, busyTimer = null;
+  window.__radar = () => ({ url: radarUrl, busy: radarBusy });
+  function radarLoaded() {
+    clearTimeout(busyTimer); radarBusy = false;
+    if (radarNext) { const n = radarNext; radarNext = null; display(n); }
+  }
+  map.on('sourcedata', (e) => { if (e.sourceId === 'radar' && e.sourceDataType === 'content') radarLoaded(); });
+  // Après chaque changement de fond : remettre le radar et le cercle de précision GPS.
+  map.on('style.load', () => {
+    styleReady = true; radarUrl = null; radarBusy = false; radarNext = null;
+    document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+    map.addSource('me-acc', { type: 'geojson', data: accGeo() });
+    map.addLayer({ id: 'me-acc', type: 'fill', source: 'me-acc', paint: { 'fill-color': '#1f8ef1', 'fill-opacity': 0.06 } });
+    map.addLayer({ id: 'me-acc-line', type: 'line', source: 'me-acc', paint: { 'line-color': '#1f8ef1', 'line-width': 1 } });
+    ensureLayers();
+  });
   function imageFor(f) {
     if (!images[f.file]) {
       const img = new Image(); img.decoding = 'async'; img.src = f.file;
@@ -615,8 +641,16 @@ const POINTS = [
   map.on('moveend', () => { if (!herePoint) updateHere(); });
 
   // ---------------------------------------------------------------- localisation
-  let meMarker = null, meCircle = null, watchId = null, firstFix = true, recenterOnFix = false;
-  const meIcon = L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+  let meMarker = null, meAcc = null, watchId = null, firstFix = true, recenterOnFix = false;
+  // cercle de précision GPS (polygone)
+  function accGeo() {
+    if (!meAcc) return { type: 'FeatureCollection', features: [] };
+    const { lat, lon, r } = meAcc, pts = [];
+    for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI;
+      pts.push([lon + r / (111320 * Math.cos(lat * Math.PI / 180)) * Math.cos(a), lat + r / 110540 * Math.sin(a)]); }
+    return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts] } };
+  }
+  function mkEl(html) { const d = document.createElement('div'); d.className = 'mk'; d.innerHTML = html; return d; }
   function setPlace(lat, lon, label) {
     if (label) { $('place').textContent = label; return; }
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&accept-language=fr&lat=${lat}&lon=${lon}`)
@@ -625,11 +659,12 @@ const POINTS = [
   }
   function onPos(p) {
     const ll = [p.coords.latitude, p.coords.longitude];
-    if (!meMarker) { meMarker = L.marker(ll, { icon: meIcon, zIndexOffset: 1000 }).addTo(map);
-      meCircle = L.circle(ll, { radius: p.coords.accuracy, color: '#1f8ef1', weight: 1, fillOpacity: .06 }).addTo(map); }
-    else { meMarker.setLatLng(ll); meCircle.setLatLng(ll).setRadius(p.coords.accuracy); }
-    if (followGps) { herePoint = L.latLng(ll); hereLabel = 'à ta position'; }
-    if (firstFix) { if (!VUE_DEPART || recenterOnFix) map.setView(ll, VUE_DEPART ? VUE_DEPART.zoom : 9);
+    if (!meMarker) meMarker = new maplibregl.Marker({ element: mkEl('<div class="me"></div>') }).setLngLat([ll[1], ll[0]]).addTo(map);
+    else meMarker.setLngLat([ll[1], ll[0]]);
+    meAcc = { lat: ll[0], lon: ll[1], r: p.coords.accuracy };
+    if (map.getSource('me-acc')) map.getSource('me-acc').setData(accGeo());
+    if (followGps) { herePoint = { lat: ll[0], lng: ll[1] }; hereLabel = 'à ta position'; }
+    if (firstFix) { if (!VUE_DEPART || recenterOnFix) setView(ll[0], ll[1], VUE_DEPART ? VUE_DEPART.zoom : 9);
       setPlace(ll[0], ll[1]); firstFix = false; recenterOnFix = false; }
     updateHere();
   }
@@ -639,7 +674,7 @@ const POINTS = [
   }
   function locate(recenter) {
     if (!('geolocation' in navigator)) return onErr({ code: 2 });
-    if (recenter && meMarker) map.setView(meMarker.getLatLng(), Math.max(map.getZoom(), 9));
+    if (recenter && meMarker) { const m = meMarker.getLngLat(); setView(m.lat, m.lng, Math.max(zoomL(), 9)); }
     else { firstFix = true; recenterOnFix = !!recenter; }
     if (watchId === null) watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   }
@@ -654,8 +689,8 @@ const POINTS = [
       const j = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(q)}`)).json();
       if (!j.length) return toast('Lieu introuvable');
       const name = j[0].display_name.split(',')[0];
-      map.setView([+j[0].lat, +j[0].lon], 10);
-      herePoint = L.latLng(+j[0].lat, +j[0].lon); hereLabel = 'à ' + name;
+      setView(+j[0].lat, +j[0].lon, 10);
+      herePoint = { lat: +j[0].lat, lng: +j[0].lon }; hereLabel = 'à ' + name;
       $('place').textContent = '🔎 ' + name; updateHere();
       $('search').classList.remove('open'); $('q').blur();
     } catch { toast('Recherche indisponible'); }
@@ -663,18 +698,17 @@ const POINTS = [
 
   // ---------------------------------------------------------------- points
   const STORE_KEY = 'radar-pluie-points';
-  const pointsLayer = L.layerGroup().addTo(map);
+  let pointMarkers = [];
   let persos = []; try { persos = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch {}
   try { if (!localStorage.getItem(STORE_KEY + '-init')) { persos = [...POINTS.map(p => ({ ...p })), ...persos]; localStorage.setItem(STORE_KEY, JSON.stringify(persos)); localStorage.setItem(STORE_KEY + '-init', '1'); } } catch {}
   const savePersos = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(persos)); } catch {} };
-  function follow(p) { herePoint = L.latLng(p.lat, p.lon); hereLabel = 'à ' + p.nom; $('place').textContent = '⭐ ' + p.nom; updateHere(); }
+  function follow(p) { herePoint = { lat: p.lat, lng: p.lon }; hereLabel = 'à ' + p.nom; $('place').textContent = '⭐ ' + p.nom; updateHere(); }
   function drawPoints() {
-    pointsLayer.clearLayers();
+    pointMarkers.forEach(m => m.remove()); pointMarkers = [];
     const add = (p, perso, i) => {
-      const m = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: '', html: `<div class="pin${perso ? ' perso' : ''}"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] }), zIndexOffset: 500 })
-        .bindTooltip(esc(p.nom), { permanent: true, direction: 'right', offset: [8, 0], className: 'pinlabel' });
-      m.on('click', () => { follow(p); if (perso) openAdd(null, i); });
-      pointsLayer.addLayer(m);
+      const el = mkEl(`<div class="pin${perso ? ' perso' : ''}"></div><span class="pinlabel">${esc(p.nom)}</span>`);
+      el.addEventListener('click', (e) => { e.stopPropagation(); follow(p); if (perso) openAdd(null, i); });
+      pointMarkers.push(new maplibregl.Marker({ element: el, anchor: 'left', offset: [-8, 0] }).setLngLat([p.lon, p.lat]).addTo(map));
     };
     persos.forEach((p, i) => add(p, true, i));
   }
@@ -697,7 +731,19 @@ const POINTS = [
     else { const p = { nom, lat: +pendingLatLng.lat.toFixed(5), lon: +pendingLatLng.lng.toFixed(5) }; persos.push(p); follow(p); }
     savePersos(); drawPoints(); closeAdd();
   };
-  map.on('contextmenu', (e) => openAdd(e.latlng));
+  // Appui long sur la carte (téléphone) ou clic droit (ordinateur) : ajouter un point.
+  let lpTimer = null, lpStart = null, lpFired = 0;
+  const cv = map.getCanvasContainer();
+  cv.addEventListener('touchstart', (e) => {
+    clearTimeout(lpTimer); if (e.touches.length !== 1) { lpStart = null; return; }
+    const t = e.touches[0]; lpStart = [t.clientX, t.clientY];
+    lpTimer = setTimeout(() => { const r = cv.getBoundingClientRect(); const ll = map.unproject([lpStart[0] - r.left, lpStart[1] - r.top]);
+      lpFired = Date.now(); openAdd({ lat: ll.lat, lng: ll.lng }); }, 600);
+  }, { passive: true });
+  cv.addEventListener('touchmove', (e) => { const t = e.touches[0];
+    if (!lpStart || e.touches.length !== 1 || Math.hypot(t.clientX - lpStart[0], t.clientY - lpStart[1]) > 10) clearTimeout(lpTimer); }, { passive: true });
+  ['touchend', 'touchcancel'].forEach(ev => cv.addEventListener(ev, () => clearTimeout(lpTimer), { passive: true }));
+  map.on('contextmenu', (e) => { if (Date.now() - lpFired > 1500) openAdd({ lat: e.lngLat.lat, lng: e.lngLat.lng }); });
   function renderFav() {
     $('favList').innerHTML = persos.length ? persos.map((p, i) => `<li data-i="${i}"><span>⭐</span><b>${esc(p.nom)}</b>
         <span class="muted">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span>
@@ -705,7 +751,7 @@ const POINTS = [
       : '<li style="cursor:default" class="muted">Aucun favori. Fais un appui long sur la carte pour en ajouter un.</li>';
     $('favList').querySelectorAll('li[data-i]').forEach(li => li.onclick = (e) => {
       if (e.target.closest('.del')) return;
-      const p = persos[+li.dataset.i]; map.setView([p.lat, p.lon], Math.max(map.getZoom(), 10)); follow(p); $('sheetFav').classList.remove('open');
+      const p = persos[+li.dataset.i]; setView(p.lat, p.lon, Math.max(zoomL(), 10)); follow(p); $('sheetFav').classList.remove('open');
     });
     $('favList').querySelectorAll('.del').forEach(b => b.onclick = (e) => {
       e.stopPropagation();
@@ -724,10 +770,9 @@ const POINTS = [
   $('fondClose').onclick = () => $('sheetFond').classList.remove('open');
   ['sheetAdd', 'sheetFav', 'sheetFond'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) $(id).classList.remove('open'); }));
   drawPoints();
-  const homeMarker = L.marker([MAISON.lat, MAISON.lon], { icon: L.divIcon({ className: '', html: '<div class="home">🏠</div>', iconSize: [24, 24], iconAnchor: [12, 12] }), zIndexOffset: 900, keyboard: false })
-    .bindTooltip(esc(MAISON.nom), { permanent: true, direction: 'right', offset: [10, 0], className: 'pinlabel' })
-    .on('click', () => follow({ nom: MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }))
-    .addTo(map);
+  const homeEl = mkEl(`<div class="home">🏠</div><span class="pinlabel">${esc(MAISON.nom)}</span>`);
+  homeEl.addEventListener('click', (e) => { e.stopPropagation(); follow({ nom: MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }); });
+  const homeMarker = new maplibregl.Marker({ element: homeEl, anchor: 'left', offset: [-12, 0] }).setLngLat([MAISON.lon, MAISON.lat]).addTo(map);
 
   // ---------------------------------------------------------------- maison : choix du lieu
   async function villeDe(lat, lon) {
@@ -738,7 +783,7 @@ const POINTS = [
     const nom = ($('homeName') && $('homeName').value.trim()) || MAISON.nom || 'Maison';
     MAISON = { nom, ville: ville || await villeDe(lat, lon) || nom, lat: +lat.toFixed(5), lon: +lon.toFixed(5) };
     try { localStorage.setItem('radar-pluie-maison', JSON.stringify(MAISON)); } catch {}
-    homeMarker.setLatLng([MAISON.lat, MAISON.lon]).setTooltipContent(esc(MAISON.nom));
+    homeMarker.setLngLat([MAISON.lon, MAISON.lat]); homeEl.querySelector('.pinlabel').textContent = MAISON.nom;
     $('sheetHome').classList.remove('open'); closeAdd && closeAdd();
     dayIdx = -1; setLieu({ nom: MAISON.ville, lat: MAISON.lat, lon: MAISON.lon }, true);
     relLoaded = 0; if (page === 'rel') loadReleves();
@@ -758,7 +803,7 @@ const POINTS = [
       () => toast('Localisation refusée ou introuvable', 4000), { enableHighAccuracy: true, timeout: 20000 });
   };
   $('homeUseLieu').onclick = () => setMaison(lieu.lat, lieu.lon, lieu.nom);
-  $('homeMap').onclick = () => { $('sheetHome').classList.remove('open'); map.setView([MAISON.lat, MAISON.lon], 13); go('radar'); toast('Fais un appui long sur ta maison, puis « Mettre ma maison ici »', 6000); };
+  $('homeMap').onclick = () => { $('sheetHome').classList.remove('open'); setView(MAISON.lat, MAISON.lon, 13); go('radar'); toast('Fais un appui long sur ta maison, puis « Mettre ma maison ici »', 6000); };
   $('homeWeather').onclick = () => { $('sheetHome').classList.remove('open'); dayIdx = -1; setLieu({ nom: MAISON.ville || MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }, true); go('prev'); };
   $('homeClose').onclick = () => $('sheetHome').classList.remove('open');
   $('sheetHome').addEventListener('click', (e) => { if (e.target.id === 'sheetHome') $('sheetHome').classList.remove('open'); });
@@ -773,7 +818,7 @@ const POINTS = [
     if (save) { try { localStorage.setItem('radar-pluie-lieu', JSON.stringify(l)); } catch {} }
     $('lieuInput').value = l.nom;
     if (!followGps) $('place').textContent = '📍 ' + l.nom;
-    if (!followGps) { herePoint = L.latLng(l.lat, l.lon); hereLabel = 'à ' + l.nom; }
+    if (!followGps) { herePoint = { lat: l.lat, lng: l.lon }; hereLabel = 'à ' + l.nom; }
     if (mini) mini.setView([l.lat, l.lon], 8);
     miniMarker && miniMarker.setLatLng([l.lat, l.lon]);
     updateHere();
@@ -792,7 +837,7 @@ const POINTS = [
     page = p;
     document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.invalidateSize(); if (frames.length) { show(nowIdx); play(); } }, 30); }
+    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.resize(); if (frames.length) { show(nowIdx); play(); } }, 30); }
     else { pause(); }
     if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
     if (p === 'rel') loadReleves();
@@ -803,7 +848,7 @@ const POINTS = [
   // ================================================================ mini-carte radar (Prévisions)
   const mini = null, miniMarker = null;
   function updateMini() {}
-  $('miniHere').onclick = () => { map.setView([lieu.lat, lieu.lon], 9); go('radar'); };
+  $('miniHere').onclick = () => { setView(lieu.lat, lieu.lon, 9); go('radar'); };
 
   // ================================================================ prévisions 10 jours (Open-Meteo)
 
