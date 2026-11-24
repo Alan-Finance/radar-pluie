@@ -1222,7 +1222,8 @@ const POINTS = [
     const all = rel.stations.map(x => ({ ...x, km: Math.round(kmFrom(x) * 10) / 10 })).sort((a, b) => a.km - b.km);
     if (rel.virtuelle && rel.virtuelle.slots && Object.keys(rel.virtuelle.slots).length) {
       const vh = { ...rel.virtuelle.heures };
-      if (om) Object.entries(om.h).forEach(([k, v]) => { vh[k] = { ...v, ...(vh[k] || {}) }; });
+      // valeurs estimées AROME, puis celles du robot (pluie radar) ; un « null » du robot n'efface pas une estimation
+      if (om) Object.entries(om.h).forEach(([k, v]) => { const r = { ...v }; Object.entries(vh[k] || {}).forEach(([n, x]) => { if (x != null) r[n] = x; }); vh[k] = r; });
       all.unshift({ ...rel.virtuelle, nom: rel.lieu.nom, heures: vh, km: Math.round(kmFrom(rel.virtuelle) * 10) / 10 });
     }
     let chosen = null; try { chosen = JSON.parse(localStorage.getItem('radar-pluie-stations') || 'null'); } catch {}
