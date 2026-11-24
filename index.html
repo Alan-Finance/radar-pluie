@@ -404,6 +404,14 @@ const POINTS = [
   map.touchZoomRotate.disableRotation(); map.keyboard.disableRotation();
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: MF_ATTR }), 'bottom-right');
   const setView = (lat, lon, z) => map.jumpTo({ center: [lon, lat], zoom: Z(z) });
+  // Vue « chez moi » : la maison au centre, 50 km de chaque côté (remise à chaque arrivée sur l'onglet Radar).
+  const RECUL_KM = 50;
+  function vueMaison() {
+    const dLat = RECUL_KM / 111.2, dLon = RECUL_KM / (111.2 * Math.cos(MAISON.lat * Math.PI / 180));
+    map.fitBounds([[MAISON.lon - dLon, MAISON.lat - dLat], [MAISON.lon + dLon, MAISON.lat + dLat]],
+      { padding: { top: 70, bottom: 110, left: 10, right: 10 }, animate: false });
+  }
+  let garderVue = false;  // true : la vue vient d'être choisie (bouton « Voir le radar », placer la maison) ; ne pas la remplacer
   // ---------------------------------------------------------------- fonds de carte (bouton 🗺️)
   const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
   const ESRI_ATTR = 'Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap';
@@ -812,7 +820,7 @@ const POINTS = [
       () => toast('Localisation refusée ou introuvable', 4000), { enableHighAccuracy: true, timeout: 20000 });
   };
   $('homeUseLieu').onclick = () => setMaison(lieu.lat, lieu.lon, lieu.nom);
-  $('homeMap').onclick = () => { $('sheetHome').classList.remove('open'); setView(MAISON.lat, MAISON.lon, 13); go('radar'); toast('Fais un appui long sur ta maison, puis « Mettre ma maison ici »', 6000); };
+  $('homeMap').onclick = () => { $('sheetHome').classList.remove('open'); setView(MAISON.lat, MAISON.lon, 13); garderVue = true; go('radar'); toast('Fais un appui long sur ta maison, puis « Mettre ma maison ici »', 6000); };
   $('homeWeather').onclick = () => { $('sheetHome').classList.remove('open'); dayIdx = -1; setLieu({ nom: MAISON.ville || MAISON.nom, lat: MAISON.lat, lon: MAISON.lon }, true); go('prev'); };
   $('homeClose').onclick = () => $('sheetHome').classList.remove('open');
   $('sheetHome').addEventListener('click', (e) => { if (e.target.id === 'sheetHome') $('sheetHome').classList.remove('open'); });
@@ -846,7 +854,7 @@ const POINTS = [
     page = p;
     document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.resize(); if (frames.length) { show(nowIdx); play(); } }, 30); }
+    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.resize(); if (!garderVue) vueMaison(); garderVue = false; if (frames.length) { show(nowIdx); play(); } }, 30); }
     else { pause(); }
     if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
     if (p === 'rel') loadReleves();
@@ -857,7 +865,7 @@ const POINTS = [
   // ================================================================ mini-carte radar (Prévisions)
   const mini = null, miniMarker = null;
   function updateMini() {}
-  $('miniHere').onclick = () => { setView(lieu.lat, lieu.lon, 9); go('radar'); };
+  $('miniHere').onclick = () => { setView(lieu.lat, lieu.lon, 9); garderVue = true; go('radar'); };
 
   // ================================================================ prévisions 10 jours (Open-Meteo)
 
