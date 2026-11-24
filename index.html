@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  :root { --accent:#1f6fb8; --text:#16212e; --muted:#5f6d7d; --panel:rgba(255,255,255,.94); --line:rgba(20,40,60,.12); --future:#1f6fb8; }
+  :root { --accent:#1f6fb8; --text:#16212e; --muted:#5f6d7d; --panel:rgba(255,255,255,.94); --line:rgba(20,40,60,.12); --future:#1f6fb8; --pc:#2f6b4f; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; color:var(--text); font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
   #map { position:fixed; inset:0; background:#dfe6ec; }
@@ -40,30 +40,32 @@
   .legend i { width:22px; height:12px; border-radius:3px; display:inline-block; }
 
   .bottom { position:fixed; z-index:1000; left:10px; right:10px; bottom:calc(env(safe-area-inset-bottom) + 10px); padding:10px 12px 12px; }
-  .stamp { display:flex; align-items:baseline; gap:8px; }
-  .stamp .kind { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px; }
-  .kind.radar { background:#e8edf2; color:#3d4b5a; }
-  .kind.prevision { background:#dcebfa; color:var(--future); }
-  .stamp .clock { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
-  .stamp .rel { color:var(--muted); font-size:12px; margin-left:auto; text-align:right; }
-
-  .track { position:relative; margin:10px 0 4px; height:34px; }
-  .strip { position:absolute; left:0; right:0; top:0; height:12px; display:flex; gap:1px; border-radius:4px; overflow:hidden; }
+  /* ===== panneau du temps (façon Pleinchamp) ===== */
+  #page-radar .bottom { padding:10px 14px 8px 8px; border-radius:16px; }
+  .pc { display:flex; align-items:center; gap:2px; }
+  .pcbtn { flex:none; width:44px; height:48px; border:0; background:none; padding:0; display:grid; place-items:center; cursor:pointer; color:var(--pc); }
+  .pcbtn svg { width:30px; height:30px; display:block; }
+  .pcbtn:active { transform:scale(.92); }
+  .pcmain { flex:1; min-width:0; margin-left:6px; }
+  .pchead { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .pchead #day { font-size:15px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; }
+  .pchead #clock { margin-left:auto; font-size:16px; font-weight:500; letter-spacing:.02em; font-variant-numeric:tabular-nums; color:var(--text); }
+  .kind { display:none; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:1px 5px; border-radius:999px; background:#dcebfa; color:var(--future); flex:none; }
+  .kind.prevision { display:inline-block; }
+  .track { position:relative; height:30px; margin-top:4px; }
+  .strip { position:absolute; left:0; right:0; top:0; height:7px; display:flex; gap:1px; border-radius:3px; overflow:hidden; }
   .strip span { flex:1; background:#eef1f4; }
-  .bar { position:absolute; left:0; right:0; top:18px; height:6px; border-radius:3px; background:#cfd7df; overflow:hidden; }
-  .bar .fut { position:absolute; top:0; bottom:0; right:0; background:var(--future); opacity:.85; }
-  .nowmark { position:absolute; top:-2px; width:2px; height:38px; background:#e0322f; border-radius:1px; }
-  .cursor { position:absolute; top:14px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:#fff; border:3px solid var(--text); box-shadow:0 1px 3px rgba(0,0,0,.3); pointer-events:none; }
-  #slider { position:absolute; left:0; right:0; top:8px; width:100%; height:28px; margin:0; opacity:0; cursor:pointer; }
-  .hours { position:relative; height:14px; font-size:11px; color:var(--muted); }
+  .bar { position:absolute; left:0; right:0; top:15px; height:8px; border-radius:4px; background:#8a8f94; overflow:hidden; }
+  .bar .fill { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--pc); }
+  .bar .fut { position:absolute; top:0; bottom:0; right:0; background:repeating-linear-gradient(-45deg, rgba(255,255,255,.45) 0 3px, transparent 3px 6px); }
+  .nowmark { position:absolute; top:11px; width:2px; height:16px; margin-left:-1px; background:#e0322f; border-radius:1px; }
+  .cursor { position:absolute; top:8px; width:22px; height:22px; margin-left:-11px; border-radius:50%; background:#fff; border:3.5px solid var(--pc); box-sizing:border-box; box-shadow:0 1px 3px rgba(0,0,0,.25); pointer-events:none; }
+  #slider { position:absolute; left:-11px; right:-11px; top:0; width:calc(100% + 22px); height:30px; margin:0; opacity:0; cursor:pointer; }
+  .hours { position:relative; height:12px; font-size:9.5px; color:var(--muted); }
   .hours span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
-  .here { font-size:12px; color:var(--muted); margin-top:2px; min-height:16px; }
+  .here { font-size:11px; color:var(--muted); margin:3px 0 0 6px; min-height:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .here b { color:var(--text); }
-
-  .controls { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; }
-  .controls button { height:42px; border-radius:10px; border:1px solid var(--line); background:#fff; font-size:17px; cursor:pointer; color:var(--text); }
-  .controls button.now { font-size:12px; font-weight:700; }
-  .controls button:active { transform:scale(.97); }
+  #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 125px); }
 
   .toast { position:fixed; z-index:1700; left:50%; transform:translateX(-50%); top:calc(env(safe-area-inset-top) + 64px);
     padding:10px 14px; font-size:13px; display:none; max-width:calc(100% - 24px); }
@@ -257,35 +259,6 @@
   .bc3 .gauge { width:10px; height:16px; } .bc3 .drop { font-size:11px; } .bc3 small { font-size:11px; }
   .btotal { margin:8px 0 2px; font-size:13px; }
 
-  /* ===== panneau du radar compact ===== */
-  #page-radar .bottom { padding:6px 9px 7px; border-radius:12px; }
-  .stamp { align-items:center; gap:6px; }
-  .stamp .kind { font-size:10px; padding:1px 6px; }
-  .stamp .clock { font-size:15px; }
-  .stamp .rel { font-size:10.5px; margin-left:0; }
-  .controls { display:flex; gap:4px; margin:0 0 0 auto; }
-  .controls button { width:32px; height:28px; font-size:14px; border-radius:7px; padding:0; }
-  .controls button.now { width:40px; font-size:10px; }
-  .track { margin:5px 0 1px; height:24px; }
-  .strip { height:8px; }
-  .bar { top:12px; height:5px; }
-  .nowmark { top:-1px; height:27px; }
-  .cursor { top:8px; width:13px; height:13px; margin-left:-6.5px; border-width:2.5px; }
-  #slider { top:4px; height:22px; }
-  .hours { height:12px; font-size:9.5px; }
-  .here { font-size:11px; margin-top:1px; min-height:13px; }
-  #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 120px); }
-
-  /* ===== panneau du radar : une seule ligne lisible ===== */
-  .stamp { flex-wrap:nowrap; min-width:0; }
-  .stamp .kind { flex:none; }
-  .stamp .clock { white-space:nowrap; flex:none; font-size:16px; }
-  .stamp .rel { white-space:nowrap; flex:none; font-size:11px; color:var(--muted); }
-  .controls { flex:none; gap:3px; }
-  .controls button { width:30px; height:26px; font-size:13px; }
-  .controls button.now { width:38px; font-size:9.5px; font-weight:700; }
-  .here { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  @media (max-width:360px) { .stamp .rel { display:none; } }
 
   /* La carte du radar est préparée en arrière-plan (cachée mais dimensionnée) :
      le fond de carte et les images sont déjà chargés quand on ouvre l'onglet. */
@@ -338,25 +311,21 @@
 <div class="card legend" id="legend"></div>
 
 <div class="card bottom">
-  <div class="stamp">
-    <span class="kind radar" id="kind">Mesure</span>
-    <span class="clock" id="clock">--:--</span>
-    <span class="rel" id="rel"></span>
-    <div class="controls">
-      <button id="prev" aria-label="Précédent">‹</button>
-      <button id="play" aria-label="Lecture">▶</button>
-      <button id="next" aria-label="Suivant">›</button>
-      <button id="now" class="now">NOW</button>
+  <div class="pc">
+    <button id="play" class="pcbtn" aria-label="Lecture"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></button>
+    <button id="now" class="pcbtn" aria-label="Revenir à maintenant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 3.5v4.5H15" /></svg></button>
+    <div class="pcmain">
+      <div class="pchead"><b id="day">--</b><span class="kind" id="kind">Prévi</span><span id="clock">--h--</span></div>
+      <div class="track">
+        <div class="strip" id="strip"></div>
+        <div class="bar"><div class="fill" id="fill"></div><div class="fut" id="fut"></div></div>
+        <div class="nowmark" id="nowmark"></div>
+        <div class="cursor" id="cursor"></div>
+        <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Heure">
+      </div>
+      <div class="hours" id="hours"></div>
     </div>
   </div>
-  <div class="track">
-    <div class="strip" id="strip"></div>
-    <div class="bar"><div class="fut" id="fut"></div></div>
-    <div class="nowmark" id="nowmark"></div>
-    <div class="cursor" id="cursor"></div>
-    <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Heure">
-  </div>
-  <div class="hours" id="hours"></div>
   <div class="here" id="here"></div>
 </div>
 </section>
@@ -422,7 +391,7 @@ const POINTS = [
 /* ================================================================ */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const FRAME_MS = 900, END_PAUSE_MS = 1800, REFRESH_MS = 3 * 60 * 1000;
+  const FRAME_MS = 600, END_PAUSE_MS = 1800, REFRESH_MS = 3 * 60 * 1000;
   let opacity = 0.8;
 
   const map = L.map('map', { zoomControl: false, maxZoom: 16, minZoom: 5 })
@@ -432,6 +401,7 @@ const POINTS = [
   const ESRI_ATTR = 'Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap';
   const MF_ATTR = ' · Radar et prévision : <a href="https://meteofrance.com">Météo-France</a> (Licence Ouverte)';
   const FONDS = {
+    osm:       { nom: 'Détaillé (comme Pleinchamp)', emoji: '🌳', base: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', max: 19 },
     gris:      { nom: 'Gris clair', emoji: '⬜', base: ESRI + 'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
     sombre:    { nom: 'Sombre', emoji: '⬛', base: ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', labels: ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', attr: ESRI_ATTR, max: 16 },
     ign:       { nom: 'Plan IGN (détaillé)', emoji: '🏡', base: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', attr: '&copy; <a href="https://www.ign.fr/">IGN</a> – Géoplateforme', max: 19 },
@@ -442,7 +412,7 @@ const POINTS = [
   map.createPane('labels'); map.getPane('labels').style.zIndex = 650; map.getPane('labels').style.pointerEvents = 'none';
   let baseLayer = null, labelLayer = null;
   function setFond(key) {
-    const f = FONDS[key] || FONDS.gris;
+    const f = FONDS[key] || FONDS.osm;
     if (baseLayer) map.removeLayer(baseLayer);
     if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
     baseLayer = L.tileLayer(f.base, { maxZoom: f.max, subdomains: f.sub || 'abc', attribution: f.attr + MF_ATTR, keepBuffer: 4, updateWhenIdle: false }).addTo(map);
@@ -450,7 +420,9 @@ const POINTS = [
     document.body.classList.toggle('dark', key === 'sombre' || key === 'satellite');
     try { localStorage.setItem('radar-pluie-fond', key); } catch {}
   }
-  let fondInitial = 'gris'; try { fondInitial = localStorage.getItem('radar-pluie-fond') || 'gris'; } catch {}
+  // Fond par défaut : OpenStreetMap standard (comme Pleinchamp), appliqué une fois même si un autre fond était enregistré.
+  let fondInitial = 'osm';
+  try { if (localStorage.getItem('radar-pluie-fond-v2')) fondInitial = localStorage.getItem('radar-pluie-fond') || 'osm'; else localStorage.setItem('radar-pluie-fond-v2', '1'); } catch {}
   setFond(fondInitial);
 
   let toastTimer;
@@ -491,8 +463,7 @@ const POINTS = [
   }
 
   const fmtTime = (d) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const fmtDay = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short' });
-
+  
   function show(i) {
     if (!frames.length) return;
     idx = Math.max(0, Math.min(frames.length - 1, i));
@@ -500,14 +471,12 @@ const POINTS = [
     imageFor(frames[Math.min(idx + 1, frames.length - 1)]);
     const f = frames[idx], d = new Date(f.time);
     const future = f.kind === 'prevision';
-    $('kind').textContent = future ? 'Prévi' : 'Radar';
     $('kind').className = 'kind ' + f.kind;
-    // heure seule ; le jour n'apparaît que si ce n'est pas aujourd'hui
-    $('clock').textContent = (d.toDateString() === new Date().toDateString() ? '' : fmtDay(d) + ' ') + fmtTime(d).replace(':', 'h');
-    const mins = Math.round((d - Date.now()) / 60000);
-    $('rel').textContent = Math.abs(mins) <= 2 ? 'maintenant' : mins > 0 ? `+${fmtDur(mins)}` : `−${fmtDur(-mins)}`;
+    $('day').textContent = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+    $('clock').textContent = fmtTime(d).replace(':', 'h');
     const pos = frames.length > 1 ? idx / (frames.length - 1) : 1;
     $('cursor').style.left = (pos * 100) + '%';
+    $('fill').style.width = (pos * 100) + '%';
     $('slider').value = idx;
   }
   const fmtDur = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
@@ -535,12 +504,12 @@ const POINTS = [
     show(last ? 0 : idx + 1);
     timer = setTimeout(step, idx >= frames.length - 1 ? END_PAUSE_MS : FRAME_MS);
   }
-  function play() { playing = true; $('play').textContent = '❚❚'; clearTimeout(timer); timer = setTimeout(step, FRAME_MS); }
-  function pause() { playing = false; $('play').textContent = '▶'; clearTimeout(timer); }
+  function play() { playing = true; $('play').innerHTML = PAUSE_SVG; $('play').setAttribute('aria-label', 'Pause'); clearTimeout(timer); timer = setTimeout(step, FRAME_MS); }
+  function pause() { playing = false; $('play').innerHTML = PLAY_SVG; $('play').setAttribute('aria-label', 'Lecture'); clearTimeout(timer); }
+  const PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>', PAUSE_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="4" width="4.5" height="16" rx="1.5"/><rect x="14" y="4" width="4.5" height="16" rx="1.5"/></svg>';
   $('play').onclick = () => playing ? pause() : play();
-  $('prev').onclick = () => { pause(); show(idx - 1); };
-  $('next').onclick = () => { pause(); show(idx + 1); };
-  $('now').onclick = () => { pause(); show(nowIdx); };
+  // ↻ : revient à maintenant et va chercher les dernières images
+  $('now').onclick = () => { pause(); show(nowIdx); loadFrames(false).then(() => show(nowIdx)); };
   $('slider').oninput = (e) => { pause(); show(parseInt(e.target.value, 10)); };
 
   async function loadFrames(first) {
@@ -563,12 +532,12 @@ const POINTS = [
       if (page === 'radar') preload(); else (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(preload, { timeout: 3000 });
       const same = frames.findIndex(f => f.time === curTime);
       show(wasNow || same < 0 ? nowIdx : same);
-      if (!frames.length) $('rel').textContent = 'Pas encore de données';
+      if (!frames.length) $('here').textContent = 'Pas encore de données';
       updateHere();
       updateMini();
       if (typeof renderMaj === 'function') renderMaj();
     } catch (e) {
-      if (first) { $('rel').textContent = 'Données indisponibles'; toast('Les images ne sont pas encore prêtes. Réessaie dans quelques minutes.', 5000); }
+      if (first) { $('here').textContent = 'Données indisponibles'; toast('Les images ne sont pas encore prêtes. Réessaie dans quelques minutes.', 5000); }
     }
   }
 
@@ -731,7 +700,7 @@ const POINTS = [
   $('btnFav').onclick = () => { renderFav(); $('sheetFav').classList.add('open'); };
   $('favClose').onclick = () => $('sheetFav').classList.remove('open');
   $('btnFond').onclick = () => {
-    let cur = 'gris'; try { cur = localStorage.getItem('radar-pluie-fond') || 'gris'; } catch {}
+    let cur = 'osm'; try { cur = localStorage.getItem('radar-pluie-fond') || 'osm'; } catch {}
     $('fondList').innerHTML = Object.entries(FONDS).map(([k, f]) => `<li data-k="${k}"><span>${f.emoji}</span><b>${f.nom}</b><span class="muted">${k === cur ? '✓ actuel' : ''}</span></li>`).join('');
     $('fondList').querySelectorAll('li').forEach(li => li.onclick = () => { setFond(li.dataset.k); $('sheetFond').classList.remove('open'); });
     $('sheetFond').classList.add('open');

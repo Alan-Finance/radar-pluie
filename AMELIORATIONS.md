@@ -11,6 +11,9 @@
 3. **Relevés pour la maison de chacun** si l'appli est partagée avec des personnes qui habitent loin de Verneuil-le-Château.
 4. **Mettre à jour les outils GitHub du robot** quand GitHub retirera les versions actuelles (avertissement de version dans les journaux).
 
+## Fait (24/11/2026)
+- Radar façon Pleinchamp : carte OpenStreetMap détaillée par défaut, zoom jusqu'aux lieux-dits, fond Plan IGN, nouveau curseur de temps (carrés de pluie gardés), 2 h de passé au lieu de 1 h 30.
+
 ## Fait (23/11/2026)
 - Bandeau Vigilance Météo-France (orange/rouge, Indre-et-Loire) en haut de Prévisions.
 - Alerte e-mail si l'appel du robot échoue : cron-job.org prévient après 3 échecs de suite, et quand ça repart.
