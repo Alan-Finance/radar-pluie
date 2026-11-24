@@ -214,6 +214,10 @@
 
   /* ===== Prévisions plus compactes (« dézoom ») ===== */
   .appbar { font-size:17px; padding:calc(env(safe-area-inset-top) + 8px) 12px 8px; }
+  .relbar small { display:block; font-size:12px; font-weight:400; color:var(--muted); margin-top:1px; }
+  .relbar small:empty { display:none; }
+  .abbtn { position:absolute; right:8px; bottom:4px; width:40px; height:40px; border:0; background:none; font-size:21px; cursor:pointer; border-radius:50%; }
+  .abbtn:active { background:#eef3f8; }
   .wrap { padding:8px 10px 20px; }
   .lieu input { font-size:15px; padding:7px 10px; }
   .lieu .gps { width:36px; height:36px; font-size:16px; }
@@ -301,7 +305,7 @@
 </div></section>
 
 <section class="page active" id="page-rel"><div class="scroll">
-  <div class="appbar">Relevés</div>
+  <div class="appbar relbar">Relevés<small id="relMaj"></small><button class="abbtn" id="btnChoose" aria-label="Choisir mes stations" hidden>⚙️</button></div>
   <div class="wrap" id="relContent"><p class="center muted">Chargement des relevés…</p></div>
 </div></section>
 
@@ -1249,8 +1253,10 @@ const POINTS = [
     const lastKeys = (rel.stations || []).map(lastKeyOf).filter(Boolean).sort();
     const ref = lastKeys.length ? hdate(lastKeys[lastKeys.length - 1]) : new Date();
     const loin = all.length && all[0].km > 25 ? `<div class="note">Ta maison est loin des stations suivies par le robot (autour de ${esc(rel.lieu.nom)}). Demande-moi de déplacer la zone des relevés.</div>` : '';
-    const head = loin + `<div class="pill">Dernier relevé – ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}</div>
-      <button class="choose" id="btnChoose">⚙️ Choisir mes stations (${sts.length}/${all.length})</button>`;
+    // en-tête compact : heure du relevé sous le titre, ⚙️ (choix des stations) à droite de la barre
+    $('relMaj').textContent = `Dernier relevé ${ref.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')} · ${sts.length}/${all.length} station${all.length > 1 ? 's' : ''}`;
+    $('btnChoose').hidden = false;
+    const head = loin;
 
     const ne = nightEnd(), jr = (d) => d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', timeZone: 'Europe/Paris' });
     // « Maintenant » (comme Météus) : la dernière heure mesurée par chaque station, une carte par station (on fait défiler)
