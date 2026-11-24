@@ -63,7 +63,7 @@
   #slider { position:absolute; left:-11px; right:-11px; top:0; width:calc(100% + 22px); height:30px; margin:0; opacity:0; cursor:pointer; }
   .hours { position:relative; height:12px; font-size:9.5px; color:var(--muted); }
   .hours span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
-  .here { font-size:11px; color:var(--muted); margin:3px 0 0 6px; min-height:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .here { font-size:11.5px; line-height:1.3; color:var(--muted); margin:3px 0 0 6px; min-height:13px; }
   .here b { color:var(--text); }
   #page-radar .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--tabbar) + 125px); }
 
@@ -572,26 +572,41 @@ const POINTS = [
     });
     return best;
   }
-  const INTENSITY = ['bruine', 'faible', 'faible', 'modérée', 'modérée', 'forte', 'très forte', 'intense', 'orageuse'];
+  const RAIN = ['bruine', 'pluie faible', 'pluie faible', 'pluie modérée', 'pluie modérée', 'pluie forte', 'pluie très forte', 'pluie intense', 'orage'];
 
   function updateHere() {
     if (!meta || !frames.length) return;
     const p = herePoint || map.getCenter();
     const label = herePoint ? hereLabel : 'au centre de la carte';
     const cells = $('strip').children;
-    let firstRain = null, maxCls = -1;
+    const cls = [];
     frames.forEach((f, k) => {
       const c = classAt(imageFor(f), p.lat, p.lng);
       const wet = c !== null && c >= 0;
       if (cells[k]) cells[k].style.background = wet ? meta.legend[c].color : '#eef1f4';
-      if (k >= nowIdx && wet) { if (firstRain === null) firstRain = k; maxCls = Math.max(maxCls, c); }
+      cls[k] = wet ? c : -1;
     });
+    // Phrase simple : quand la pluie commence, quand elle est la plus forte, quand elle s'arrête.
+    const hh = (k) => fmtTime(new Date(frames[k].time)).replace(':', 'h');
+    const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    let first = -1, last = -1, peak = -1;
+    for (let k = nowIdx; k < frames.length; k++) if (cls[k] >= 0) {
+      if (first < 0) first = k;
+      last = k;
+      if (peak < 0 || cls[k] > cls[peak]) peak = k;
+    }
     let txt;
-    if (firstRain === null) txt = `Pas de pluie prévue ${label} d'ici 3 h`;
-    else if (firstRain === nowIdx) txt = `Il pleut ${label} (${INTENSITY[maxCls]} au plus fort)`;
+    if (first < 0) txt = `Pas de pluie ${label} d'ici 3 h`;
     else {
-      const mins = Math.round((new Date(frames[firstRain].time) - Date.now()) / 60000);
-      txt = `Pluie ${label} ${mins <= 0 ? 'imminente' : 'dans ' + fmtDur(mins)} (${INTENSITY[maxCls]} au plus fort)`;
+      const parts = [];
+      if (first === nowIdx) parts.push(`${cap(RAIN[cls[first]])} ${label} en ce moment`);
+      else {
+        const mins = Math.round((new Date(frames[first].time) - Date.now()) / 60000);
+        parts.push(`${cap(RAIN[cls[first]])} ${label} vers ${hh(first)}` + (mins > 0 ? ` (dans ${fmtDur(mins)})` : ''));
+      }
+      if (peak > first && RAIN[cls[peak]] !== RAIN[cls[first]]) parts.push(`${RAIN[cls[peak]]} vers ${hh(peak)}`);
+      if (last < frames.length - 1) parts.push(`fin vers ${hh(last + 1)}`);
+      txt = parts.join(' · ');
     }
     $('here').innerHTML = '<b>' + esc(txt) + '</b>';
     if ($('miniHere')) $('miniHere').innerHTML = '<b>' + esc(txt) + '</b>';
