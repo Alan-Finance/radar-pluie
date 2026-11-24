@@ -39,7 +39,7 @@ jobs:
       - name: Préparer le site
         run: |
           mkdir -p site
-          cp index.html manifest.webmanifest icon-v2.svg icon-v2-192.png icon-v2-512.png config.json site/
+          cp index.html manifest.webmanifest icon-v2.svg icon-v2-192.png icon-v2-512.png config.json site/ && cp -r ciel site/
 
       - name: Récupérer les données Météo-France et fabriquer les images
         env:

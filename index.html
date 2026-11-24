@@ -188,18 +188,18 @@
   .nowwrap::-webkit-scrollbar { display:none; }
   .nowcard { flex:0 0 88%; scroll-snap-align:start; background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.15); overflow:hidden; }
   .nowcard:only-child { flex-basis:100%; }
-  .nowhead { position:relative; background:linear-gradient(135deg,#3f86b5,#8cc0e2); color:#fff; padding:10px 14px 12px; text-shadow:0 1px 2px rgba(0,0,0,.25); }
-  /* fond selon le temps qu'il fait (demande d'Alan) */
+  .nowhead { position:relative; background:linear-gradient(135deg,#3f86b5,#8cc0e2); color:#fff; padding:10px 14px 12px; text-shadow:0 1px 3px rgba(0,0,0,.45); }
+  /* fond « ciel réaliste » selon le temps qu'il fait (demande d'Alan) : images ciel/*.svg (nuages par bruit fractal), refaites par ciel/generer.py */
   .nowhead .wx { position:absolute; top:8px; right:12px; font-size:38px; line-height:1; text-shadow:none; }
-  .nowhead.a-soleil { background:linear-gradient(135deg,#1e7fd6,#5fb6f5 60%,#ffd77a); }
-  .nowhead.a-eclaircies { background:linear-gradient(135deg,#3f86b5,#8cc0e2 70%,#ffe2a0); }
-  .nowhead.a-couvert { background:linear-gradient(135deg,#66788a,#a3b1be); }
-  .nowhead.a-pluie { background:repeating-linear-gradient(110deg,rgba(255,255,255,.10) 0 2px,transparent 2px 14px),linear-gradient(135deg,#34495c,#6c8496); }
-  .nowhead.a-orage { background:repeating-linear-gradient(110deg,rgba(255,255,255,.08) 0 2px,transparent 2px 14px),linear-gradient(135deg,#25263f,#5b5578); }
-  .nowhead.a-neige { background:radial-gradient(circle,rgba(255,255,255,.75) 2px,transparent 2.5px) 7px 3px/37px 31px,radial-gradient(circle,rgba(255,255,255,.5) 1.5px,transparent 2px) 21px 17px/53px 43px,radial-gradient(circle,rgba(255,255,255,.6) 2.5px,transparent 3px) 2px 25px/71px 59px,linear-gradient(135deg,#6f8cab,#b7cadd); }
-  .nowhead.a-brouillard { background:linear-gradient(180deg,rgba(255,255,255,.25),transparent 40%,rgba(255,255,255,.25)),linear-gradient(135deg,#7f8a94,#bcc4cb); }
-  .nowhead.a-nuit { background:radial-gradient(circle,rgba(255,255,255,.8) 1px,transparent 1.5px) 11px 5px/47px 37px,radial-gradient(circle,rgba(255,255,255,.5) .8px,transparent 1.3px) 29px 21px/61px 53px,radial-gradient(circle,rgba(255,255,255,.9) 1.3px,transparent 1.8px) 3px 31px/89px 71px,linear-gradient(135deg,#0d1a38,#2a4777); }
-  .nowhead.a-nuitcouv { background:linear-gradient(135deg,#1d2734,#4a5868); }
+  .nowhead.a-soleil { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/soleil.svg") center/cover; }
+  .nowhead.a-eclaircies { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/eclaircies.svg") center/cover; }
+  .nowhead.a-couvert { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/couvert.svg") center/cover; }
+  .nowhead.a-pluie { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/pluie.svg") center/cover; }
+  .nowhead.a-orage { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/orage.svg") center/cover; }
+  .nowhead.a-neige { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/neige.svg") center/cover; }
+  .nowhead.a-brouillard { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/brouillard.svg") center/cover; }
+  .nowhead.a-nuit { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/nuit.svg") center/cover; }
+  .nowhead.a-nuitcouv { background:linear-gradient(100deg,rgba(0,0,0,.32),rgba(0,0,0,.08) 70%),#5a6b7b url("ciel/nuitcouv.svg") center/cover; }
   .nowhead .nm { font-size:18px; font-weight:600; } .nowhead .nm small { display:block; font-size:13px; font-weight:400; opacity:.95; }
   .nowhead .tt { display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; gap:8px; }
   .nowhead .big { font-size:34px; font-weight:600; } .nowhead .ros { font-size:14px; text-align:right; }
@@ -1276,7 +1276,7 @@ const POINTS = [
         ? `<div class="v">${v.ff != null ? v.ff + ' km/h' : '–'}<small>${v.fx != null ? 'rafale ' + v.fx + ' km/h' : ''}${v.dd != null ? ' · ' + dirTxt(v.dd) : ''}</small></div>`
         : '<div class="v">–<small>non mesuré</small></div>';
       const amb = ambiance(v.rr);
-      return `<div class="nowcard"><div class="nowhead${amb ? ' a-' + amb : ''}">${amb ? `<span class="wx">${AMB[amb]}</span>` : ''}
+      return `<div class="nowcard"><div class="nowhead${amb ? ' a-' + amb : ''}">
           <div class="nm">${esc(st.nom)}<small>${st.virtuelle ? `station virtuelle · ${h}` : Math.round(st.km) + ' km · relevé de ' + h}</small></div>
           <div class="tt"><span class="big">${v.t != null ? fmt1(v.t) + '°C' : (st.virtuelle ? '' : '–')}</span><span class="ros">${v.td != null ? 'Point de rosée : ' + fmt1(v.td) + '°C' : ''}</span></div></div>
         <div class="nowbody">
