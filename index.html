@@ -529,7 +529,7 @@ const POINTS = [
   function imageFor(f) {
     if (!images[f.file]) {
       const img = new Image(); img.decoding = 'async'; img.src = f.file;
-      img.onload = () => updateHere();
+      img.onload = () => hereBientot();
       images[f.file] = img;
     }
     return images[f.file];
@@ -608,7 +608,7 @@ const POINTS = [
       layoutTrack();
       if (frames.length) imageFor(frames[nowIdx]);
       const preload = () => frames.forEach(f => imageFor(f));  // préchargement (cache du navigateur)
-      if (page === 'radar') preload(); else (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(preload, { timeout: 3000 });
+      if (page === 'radar') preload(); else setTimeout(() => (window.requestIdleCallback || ((fn) => fn()))(preload, { timeout: 4000 }), 4000);  // après l'affichage des Relevés
       const same = frames.findIndex(f => f.time === curTime);
       show(wasNow || same < 0 ? nowIdx : same);
       if (!frames.length) $('here').textContent = 'Pas encore de données';
@@ -634,8 +634,19 @@ const POINTS = [
   const pctx = probe.getContext('2d', { willReadFrequently: true });
   let herePoint = null, hereLabel = '';
 
+  // Mémoire des couleurs déjà lues (image + point) : chaque image n'est lue qu'une fois par point.
+  // Sans ça, relire ~40 grandes images à chaque arrivée d'image obligeait le téléphone à les redécoder sans cesse (lenteurs).
+  const clsMemo = new Map();
   function classAt(img, lat, lon) {
     if (!img.complete || !img.naturalWidth || !meta) return null;
+    const key = img.src + '|' + lat.toFixed(4) + ',' + lon.toFixed(4);
+    if (clsMemo.has(key)) return clsMemo.get(key);
+    if (clsMemo.size > 3000) clsMemo.clear();
+    const v = classAtLu(img, lat, lon);
+    clsMemo.set(key, v);
+    return v;
+  }
+  function classAtLu(img, lat, lon) {
     const [[s, w], [n, e]] = meta.bounds;
     if (lat < s || lat > n || lon < w || lon > e) return null;
     const x = (lon - w) / (e - w) * img.naturalWidth;
@@ -653,6 +664,9 @@ const POINTS = [
   }
   const RAIN = ['bruine', 'pluie faible', 'pluie faible', 'pluie modérée', 'pluie modérée', 'pluie forte', 'pluie très forte', 'pluie intense', 'orage'];
 
+  // regroupe les mises à jour des carrés (une seule fois quand plusieurs images arrivent d'affilée)
+  let hereTimer = null;
+  function hereBientot() { clearTimeout(hereTimer); hereTimer = setTimeout(updateHere, 300); }
   function updateHere() {
     if (!meta || !frames.length) return;
     const p = herePoint || map.getCenter();

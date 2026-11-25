@@ -47,8 +47,8 @@ AROMEPI_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}"
 
 # Zone dessinée (ouest, sud, est, nord) = celle de la prévision AROME-PI : métropole + Corse.
 WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
-DEG_PER_PX = 0.010  # ~ 750 m à la latitude de la France (images plus légères pour les téléphones)
-SMOOTH_SIGMA_PX = 1.3  # lissage façon Météus (0 = aucun)
+DEG_PER_PX = 0.015  # ~ 1,1 km (0.010 avant le 25/11/2026) : images 2,2 fois plus légères à décoder pour les téléphones
+SMOOTH_SIGMA_PX = 0.9  # lissage façon Météus (0 = aucun) ; 1.3 avec des pixels de 0.010°, réduit pour garder le même flou en km
 
 PAST_HOURS = 2.0
 RADAR_STEP_MIN = 5  # une image toutes les 5 min (10 min avant le 25/11/2026), pour une animation plus fluide
