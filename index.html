@@ -558,19 +558,29 @@ const POINTS = [
     $('kind').className = 'kind ' + f.kind;
     $('day').textContent = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
     $('clock').textContent = fmtTime(d).replace(':', 'h');
-    const pos = frames.length > 1 ? idx / (frames.length - 1) : 1;
+    const pos = tpos(idx);
     $('cursor').style.left = (pos * 100) + '%';
     $('fill').style.width = (pos * 100) + '%';
-    $('slider').value = idx;
+    $('slider').value = Math.round(minOf(idx));
   }
   const fmtDur = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
 
+  // La barre suit l'heure réelle (et non le numéro de l'image) : 2 h de passé à 5 min et la prévision à 15 min
+  // gardent leur vraie durée, et le trait rouge est à sa vraie place (25/11/2026).
+  const minOf = (k) => frames.length ? (new Date(frames[k].time) - new Date(frames[0].time)) / 60000 : 0;
+  const totMin = () => frames.length > 1 ? minOf(frames.length - 1) : 0;
+  const tpos = (k) => totMin() > 0 ? minOf(k) / totMin() : 1;
+  function nearestIdx(m) {
+    let best = 0;
+    frames.forEach((f, k) => { if (Math.abs(minOf(k) - m) < Math.abs(minOf(best) - m)) best = k; });
+    return best;
+  }
   function layoutTrack() {
     const n = frames.length;
-    $('slider').max = Math.max(0, n - 1);
-    const pos = (k) => (n > 1 ? k / (n - 1) : 1) * 100;
+    $('slider').max = Math.max(0, Math.round(totMin()));
+    const pos = (k) => tpos(k) * 100;
     const firstFut = frames.findIndex(f => f.kind === 'prevision');
-    $('fut').style.left = firstFut < 0 ? '100%' : pos(Math.max(0, firstFut - 0.5)) + '%';
+    $('fut').style.left = firstFut < 0 ? '100%' : (firstFut > 0 ? (pos(firstFut - 1) + pos(firstFut)) / 2 : 0) + '%';
     $('nowmark').style.left = pos(nowIdx) + '%';
     // repères horaires
     const hours = $('hours'); hours.innerHTML = '';
@@ -578,7 +588,11 @@ const POINTS = [
       const d = new Date(f.time);
       if (d.getMinutes() === 0) { const s = document.createElement('span'); s.style.left = pos(k) + '%'; s.textContent = d.getHours() + 'h'; hours.appendChild(s); }
     });
-    $('strip').innerHTML = frames.map(() => '<span></span>').join('');
+    // chaque carré couvre la durée de son image (de la moitié de l'écart précédent à la moitié du suivant)
+    $('strip').innerHTML = frames.map((f, k) => {
+      const a = k > 0 ? (minOf(k - 1) + minOf(k)) / 2 : 0, b = k < n - 1 ? (minOf(k) + minOf(k + 1)) / 2 : minOf(k);
+      return `<span style="flex:${Math.max(0.5, b - a)} 1 0"></span>`;
+    }).join('');
   }
 
   // Lecture au rythme du temps réel : MS_PAR_MIN ms par minute entre deux images (radar 5 min → 250 ms,
@@ -599,7 +613,7 @@ const POINTS = [
   $('play').onclick = () => playing ? pause() : play();
   // ↻ : revient à maintenant et va chercher les dernières images
   $('now').onclick = () => { pause(); show(nowIdx); loadFrames(false).then(() => show(nowIdx)); };
-  $('slider').oninput = (e) => { pause(); fadeNext = 150; show(parseInt(e.target.value, 10)); };
+  $('slider').oninput = (e) => { pause(); fadeNext = 150; show(nearestIdx(parseInt(e.target.value, 10))); };
 
   async function loadFrames(first) {
     try {
