@@ -1,4 +1,4 @@
-"""Sonde temporaire (6) : accès PIAF avec la clé du robot (clé jamais affichée) + liste des couvertures."""
+"""Sonde temporaire (7) : accès PIAF avec la clé du robot (clé jamais affichée) + liste des couvertures."""
 import os, re, urllib.request
 
 def get(url, headers=None):
@@ -16,7 +16,7 @@ def get(url, headers=None):
 
 key = os.environ.get("METEOFRANCE_KEY", "")
 H = {"apikey": key}
-for host in ("https://public-api.meteofrance.fr", "https://api.meteofrance.fr"):
+for host in ("https://api.meteofrance.fr", "https://public-api.meteofrance.fr"):
     t = get(f"{host}/pro/piaf/1.0/wcs/MF-NWP-HIGHRES-PIAF-001-FRANCE-WCS/GetCapabilities?service=WCS&version=2.0.1&language=fre", H)
     if t:
         ids = re.findall(r"<(?:wcs:)?CoverageId>([^<]+)<", t)
