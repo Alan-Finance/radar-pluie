@@ -50,6 +50,8 @@ AROMEPI_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}"
 PIAF_URL = "https://api.meteofrance.fr/pro/piaf/1.0/wcs/MF-NWP-HIGHRES-PIAF-001-FRANCE-WCS"
 PIAF_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}_PT5M"
 PIAF_STEP_MIN = 5
+PIAF_HD: dict = {}  # échéance -> pluie (mm/h) sur la grille HD autour du lieu (PIAF est à 1 km : lissage plus fort)
+PIAF_HD_SMOOTH_SIGMA_PX = 2.0
 
 # Zone dessinée (ouest, sud, est, nord) = celle de la prévision AROME-PI : métropole + Corse.
 WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
@@ -385,11 +387,13 @@ def decode_grib2(data: bytes) -> tuple[np.ndarray, float, float, float, float]:
     return np.ascontiguousarray(grid), lat0, lon0, dlat, dlon
 
 
-def grib_to_output(grid, lat0, lon0, dlat, dlon) -> np.ndarray:
-    j = np.rint((LAT_GRID - lat0) / dlat).astype(np.int64)
-    i = np.rint((LON_GRID - lon0) / dlon).astype(np.int64)
+def grib_to_output(grid, lat0, lon0, dlat, dlon, lat_grid=None, lon_grid=None) -> np.ndarray:
+    lat_grid = LAT_GRID if lat_grid is None else lat_grid
+    lon_grid = LON_GRID if lon_grid is None else lon_grid
+    j = np.rint((lat_grid - lat0) / dlat).astype(np.int64)
+    i = np.rint((lon_grid - lon0) / dlon).astype(np.int64)
     inside = (j >= 0) & (j < grid.shape[0]) & (i >= 0) & (i < grid.shape[1])
-    out = np.full(LAT_GRID.shape, np.nan, dtype=np.float32)
+    out = np.full(lat_grid.shape, np.nan, dtype=np.float32)
     out[inside] = grid[j[inside], i[inside]]
     return out
 
@@ -471,7 +475,10 @@ def fetch_piaf(existing_run: str | None, start: datetime, end: datetime) -> tupl
 
     def add(t: datetime, msg: bytes) -> None:
         grid, lat0, lon0, dlat, dlon = decode_grib2(msg)
-        frames[t] = grib_to_output(grid * (60 / PIAF_STEP_MIN), lat0, lon0, dlat, dlon)  # mm en 5 min -> mm/h
+        rate = grid * (60 / PIAF_STEP_MIN)  # mm en 5 min -> mm/h
+        frames[t] = grib_to_output(rate, lat0, lon0, dlat, dlon)
+        if HD:
+            PIAF_HD[t] = grib_to_output(rate, lat0, lon0, dlat, dlon, HD_LAT, HD_LON)
 
     for t in steps:
         t0 = time.monotonic()
@@ -666,11 +673,19 @@ def main() -> int:
         if run:
             for k in [k for k in frames if k[0] == "prevision"]:
                 frames.pop(k)
+            tag = "".join(c for c in run if c.isalnum())
             for t, rate in fc.items():
                 iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
-                path = DATA / "p" / f"{''.join(c for c in run if c.isalnum())}_{fname(t)}.png"
-                render(rate, path)
-                frames[("prevision", iso)] = {"kind": "prevision", "time": iso, "file": f"data/p/{path.name}"}
+                path = DATA / "p" / f"{tag}_{fname(t)}.png"
+                entry = {"kind": "prevision", "time": iso, "file": f"data/p/{path.name}"}
+                if HD and t in PIAF_HD:  # image détaillée autour du lieu, comme le radar (25/11/2026)
+                    hd_path = DATA / "ph" / f"{tag}_{fname(t)}.png"
+                    render(PIAF_HD[t], hd_path, sigma=PIAF_HD_SMOOTH_SIGMA_PX)
+                    render(rate, path, hole=HD_MASK)
+                    entry["hd"] = f"data/ph/{hd_path.name}"
+                else:
+                    render(rate, path)
+                frames[("prevision", iso)] = entry
             state["forecast_run"] = run
             state["forecast_complete"] = True
 
@@ -701,7 +716,7 @@ def main() -> int:
 
     # Ménage : les images qui ne sont plus listées.
     listed = {OUT / f[k] for f in ordered for k in ("file", "hd") if k in f}
-    for sub in ("r", "rh", "p"):
+    for sub in ("r", "rh", "p", "ph"):
         for p in (DATA / sub).glob("*.png") if (DATA / sub).exists() else []:
             if p not in listed:
                 p.unlink()
