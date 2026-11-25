@@ -60,5 +60,18 @@ jobs:
       - if: steps.deploy.outcome == 'failure'
         run: sleep 20
 
-      - if: steps.deploy.outcome == 'failure'
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      # Panne passagère de GitHub Pages (erreur 500) : le passage suivant republiera, inutile d'envoyer un e-mail d'échec.
+      # On ne signale l'échec que si le site publié n'a plus été mis à jour depuis plus d'1 h (25/11/2026, demande d'Alan).
+      - if: steps.deploy2.outcome == 'failure'
+        env:
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          age=$(curl -fsS --max-time 30 "$PAGES_URL/data/frames.json" | python3 -c "import sys,json,datetime as d; g=json.load(sys.stdin)['generated']; print(int((d.datetime.now(d.timezone.utc)-d.datetime.fromisoformat(g.replace('Z','+00:00'))).total_seconds()//60))" || echo 9999)
+          echo "Publication impossible (GitHub Pages) ; site publié il y a $age min."
+          if [ "$age" -gt 60 ]; then echo "::error::Site non mis à jour depuis plus d'1 h"; exit 1; fi
+          echo "::warning::Publication reportée au prochain passage"
