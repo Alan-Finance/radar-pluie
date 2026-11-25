@@ -529,23 +529,10 @@ const POINTS = [
   function imageFor(f) {
     if (!images[f.file]) {
       const img = new Image(); img.decoding = 'async'; img.src = f.file;
-      img.onload = img.onerror = () => { img.done = true; updateHere(); pumpPreload(); };
+      img.onload = () => updateHere();
       images[f.file] = img;
     }
     return images[f.file];
-  }
-  const pret = (f) => !f || (images[f.file] && images[f.file].done);
-  // Préchargement dans l'ordre de lecture (maintenant, la prévision, puis le passé), 4 images à la fois,
-  // pour que l'animation démarre vite au lieu d'attendre que tout arrive en même temps.
-  let preQueue = [];
-  function preloadAll() {
-    const n = frames.length, rang = (k) => (k - nowIdx + n) % n;
-    preQueue = frames.map((f, k) => k).sort((a, b) => rang(a) - rang(b)).map(k => frames[k]).filter(f => !images[f.file]);
-    pumpPreload();
-  }
-  function pumpPreload() {
-    let enCours = Object.values(images).filter(i => !i.done).length;
-    while (enCours < 4 && preQueue.length) { const f = preQueue.shift(); if (!images[f.file]) { imageFor(f); enCours++; } }
   }
 
   const fmtTime = (d) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -591,8 +578,6 @@ const POINTS = [
   function step() {
     if (!playing) return;
     const last = idx >= frames.length - 1;
-    const suiv = frames[last ? 0 : idx + 1];
-    if (!pret(suiv)) { imageFor(suiv); timer = setTimeout(step, 120); return; }  // on attend l'image suivante au lieu de sauter
     const d = last ? FRAME_MS : ecart(idx);
     fadeNext = last ? 300 : Math.round(d * 0.9);
     show(last ? 0 : idx + 1);
@@ -622,7 +607,8 @@ const POINTS = [
       if (first) buildLegend();
       layoutTrack();
       if (frames.length) imageFor(frames[nowIdx]);
-      if (page === 'radar') preloadAll(); else (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(preloadAll, { timeout: 3000 });
+      const preload = () => frames.forEach(f => imageFor(f));  // préchargement (cache du navigateur)
+      if (page === 'radar') preload(); else (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(preload, { timeout: 3000 });
       const same = frames.findIndex(f => f.time === curTime);
       show(wasNow || same < 0 ? nowIdx : same);
       if (!frames.length) $('here').textContent = 'Pas encore de données';
@@ -903,7 +889,7 @@ const POINTS = [
     page = p;
     document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + p));
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === p));
-    if (p === 'radar') { preloadAll(); setTimeout(() => { map.resize(); if (!garderVue) vueMaison(); garderVue = false; if (frames.length) { show(nowIdx); play(); } }, 30); }
+    if (p === 'radar') { frames.forEach(f => imageFor(f)); setTimeout(() => { map.resize(); if (!garderVue) vueMaison(); garderVue = false; if (frames.length) { show(nowIdx); play(); } }, 30); }
     else { pause(); }
     if (p === 'prev' && mini) setTimeout(() => mini.invalidateSize(), 30);
     if (p === 'rel') loadReleves();
@@ -1412,9 +1398,6 @@ const POINTS = [
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadFrames(false); loadVigilance(); loadReleves(); } });
   // la position GPS n'est demandée que sur appui du bouton 📍
 })();
-
-  // Garde les images radar déjà vues sur le téléphone (voir sw.js) : réouverture quasi immédiate.
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
