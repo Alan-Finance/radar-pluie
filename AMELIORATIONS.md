@@ -11,6 +11,13 @@
 3. **Relevés pour la maison de chacun** si l'appli est partagée avec des personnes qui habitent loin de Verneuil-le-Château.
 4. **Mettre à jour les outils GitHub du robot** quand GitHub retirera les versions actuelles (avertissement de version dans les journaux).
 
+- Radar encore plus fluide (en attente, décidé avec Alan le 25/11/2026) : images intermédiaires qui suivent le déplacement des nuages. Variante conseillée : le robot n'envoie que le champ de déplacement (léger) et le téléphone fait glisser les images. À revoir après 2-3 jours de pluie avec le pas de 5 min + fondu.
+- Pluviomètre perso Ecowitt (passerelle GW1100 + WH40H, 868 MHz) : quand Alan l'aura installé, lire ecowitt.net (API v3, Application Key + API Key, ne expirent pas) depuis le robot et l'ajouter dans Relevés.
+
+## Fait (25/11/2026)
+- Radar : une image toutes les 5 min (au lieu de 10) et fondu enchaîné au rythme du temps réel.
+- Relevés : en-tête compact, ciels réalistes affichés immédiatement.
+
 ## Fait (24/11/2026)
 - Radar façon Pleinchamp : carte OpenStreetMap détaillée par défaut, zoom jusqu'aux lieux-dits, fond Plan IGN, nouveau curseur de temps (carrés de pluie gardés), 2 h de passé au lieu de 1 h 30.
 
