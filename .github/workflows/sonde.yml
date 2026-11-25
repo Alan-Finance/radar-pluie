@@ -1,0 +1,14 @@
+name: Sonde PIAF (temporaire)
+on:
+  push:
+    branches: [main]
+    paths: ['scripts/sonde_piaf.py', '.github/workflows/sonde.yml']
+permissions:
+  contents: read
+jobs:
+  sonde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/sonde_piaf.py
