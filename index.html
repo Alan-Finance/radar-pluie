@@ -477,49 +477,59 @@ const POINTS = [
   let meta = null, frames = [], images = {}, idx = 0, playing = false, timer = null, nowIdx = 0;
   const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
 
-  // Deux images radar superposées (A et B), sous les noms de lieux : l'image suivante se charge dans celle
-  // qui est cachée, puis fondu enchaîné, pour voir les averses se déplacer et grossir sans à-coups.
-  const RL = ['radarA', 'radarB'];
-  let front = null, frontUrl = null, pendingUrl = null, pendingFade = 0, fadeNext = 0;
-  const radarCoords = () => { const [[s, w], [n, e]] = meta.bounds; return [[w, n], [e, n], [e, s], [w, s]]; };
+  // Deux paires d'images radar (A et B), sous les noms de lieux. Chaque paire = l'image France (allégée) + l'image
+  // haute définition autour de la maison (pleine précision 500 m ; ce carré est laissé vide dans l'image France).
+  // L'image suivante se charge dans la paire cachée, puis fondu enchaîné, pour voir les averses se déplacer et grossir.
+  const RL = ['radarA', 'radarB'], HL = ['hdA', 'hdB'];
+  const VIDE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+  let front = 0, frontKey = null, pending = null, pendingN = 0, pendingFade = 0, fadeNext = 0;
+  const coordsOf = (bd) => { const [[s, w], [n, e]] = bd; return [[w, n], [e, n], [e, s], [w, s]]; };
+  const keyOf = (f) => f.file + '|' + (f.hd || '');
+  const paint = (op) => ({ 'raster-opacity': op, 'raster-fade-duration': 0, 'raster-resampling': 'linear' });
   const firstLabel = () => { const l = map.getStyle().layers.find(l => l.type === 'symbol' || l.id === 'labels'); return l && l.id; };
   function ensureLayers() { if (meta && frames.length) display(frames[idx]); }
   function display(f, fade = 0) {
     if (!meta || !styleReady || !f) return;
     if (!map.getSource('radarA')) {
-      RL.forEach((id, k) => {
-        map.addSource(id, { type: 'image', url: f.file, coordinates: radarCoords() });
-        map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': k === 0 ? opacity : 0, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstLabel());
+      [0, 1].forEach(k => {
+        map.addSource(RL[k], { type: 'image', url: f.file, coordinates: coordsOf(meta.bounds) });
+        map.addLayer({ id: RL[k], type: 'raster', source: RL[k], paint: paint(k === 0 ? opacity : 0) }, firstLabel());
+        if (meta.hd_bounds) {
+          map.addSource(HL[k], { type: 'image', url: (k === 0 && f.hd) || VIDE, coordinates: coordsOf(meta.hd_bounds) });
+          map.addLayer({ id: HL[k], type: 'raster', source: HL[k], paint: paint(k === 0 && f.hd ? opacity : 0) }, firstLabel());
+        }
       });
-      front = 'radarA'; frontUrl = f.file; return;
+      front = 0; frontKey = keyOf(f); return;
     }
     if (radarBusy) { radarNext = [f, fade]; return; }  // une image à la fois : on garde seulement la dernière demandée
-    if (f.file === frontUrl) return;
-    const back = front === 'radarA' ? 'radarB' : 'radarA';
-    radarBusy = true; pendingUrl = f.file; pendingFade = fade;
-    clearTimeout(busyTimer); busyTimer = setTimeout(radarLoaded, 3000);
-    map.getSource(back).updateImage({ url: f.file, coordinates: radarCoords() });
+    if (keyOf(f) === frontKey) return;
+    const b = 1 - front;
+    radarBusy = true; pending = f; pendingFade = fade; pendingN = 1;
+    clearTimeout(busyTimer); busyTimer = setTimeout(() => radarLoaded(true), 3000);
+    if (f.hd && meta.hd_bounds && map.getSource(HL[b])) { pendingN = 2; map.getSource(HL[b]).updateImage({ url: f.hd, coordinates: coordsOf(meta.hd_bounds) }); }
+    map.getSource(RL[b]).updateImage({ url: f.file, coordinates: coordsOf(meta.bounds) });
   }
   let radarBusy = false, radarNext = null, busyTimer = null;
-  window.__radar = () => ({ url: frontUrl, front, busy: radarBusy });
-  function radarLoaded() {
+  window.__radar = () => ({ url: frontKey, front, busy: radarBusy });
+  function radarLoaded(force) {
+    if (force !== true && --pendingN > 0) return;  // on attend les deux images de la paire
     clearTimeout(busyTimer);
-    if (radarBusy && pendingUrl) {
-      const back = front === 'radarA' ? 'radarB' : 'radarA', d = pendingFade;
+    if (radarBusy && pending) {
+      const b = 1 - front, d = pendingFade;
       // l'image qui arrive apparaît sur toute la durée ; l'ancienne s'efface un peu après, pour ne pas « blanchir » au milieu du fondu
-      map.setPaintProperty(back, 'raster-opacity-transition', { duration: d, delay: 0 });
-      map.setPaintProperty(front, 'raster-opacity-transition', { duration: Math.round(d * 0.6), delay: Math.round(d * 0.4) });
-      map.setPaintProperty(back, 'raster-opacity', opacity);
-      map.setPaintProperty(front, 'raster-opacity', 0);
-      front = back; frontUrl = pendingUrl; pendingUrl = null;
+      const inT = { duration: d, delay: 0 }, outT = { duration: Math.round(d * 0.6), delay: Math.round(d * 0.4) };
+      const set = (id, op, tr) => { if (!map.getLayer(id)) return; map.setPaintProperty(id, 'raster-opacity-transition', tr); map.setPaintProperty(id, 'raster-opacity', op); };
+      set(RL[b], opacity, inT); set(HL[b], pending.hd ? opacity : 0, inT);
+      set(RL[front], 0, outT); set(HL[front], 0, outT);
+      front = b; frontKey = keyOf(pending); pending = null;
     }
     radarBusy = false;
     if (radarNext) { const [n, fd] = radarNext; radarNext = null; display(n, fd); }
   }
-  map.on('sourcedata', (e) => { if (RL.includes(e.sourceId) && e.sourceDataType === 'content' && radarBusy) radarLoaded(); });
+  map.on('sourcedata', (e) => { if ((RL.includes(e.sourceId) || HL.includes(e.sourceId)) && e.sourceDataType === 'content' && radarBusy) radarLoaded(); });
   // Après chaque changement de fond : remettre le radar et le cercle de précision GPS.
   map.on('style.load', () => {
-    styleReady = true; front = null; frontUrl = null; pendingUrl = null; radarBusy = false; radarNext = null;
+    styleReady = true; front = 0; frontKey = null; pending = null; radarBusy = false; radarNext = null;
     document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
     map.addSource('me-acc', { type: 'geojson', data: accGeo() });
     map.addLayer({ id: 'me-acc', type: 'fill', source: 'me-acc', paint: { 'fill-color': '#1f8ef1', 'fill-opacity': 0.06 } });
@@ -599,7 +609,7 @@ const POINTS = [
       const wasNow = first || idx === nowIdx;
       const curTime = frames[idx] && frames[idx].time;
       meta = m; frames = m.frames || [];
-      const keep = new Set(frames.map(f => f.file));
+      const keep = new Set(frames.flatMap(f => f.hd ? [f.file, f.hd] : [f.file]));
       Object.keys(images).forEach(k => { if (!keep.has(k)) delete images[k]; });
       ensureLayers();
       let last = -1; frames.forEach((f, k) => { if (f.kind === 'radar') last = k; });
@@ -607,7 +617,7 @@ const POINTS = [
       if (first) buildLegend();
       layoutTrack();
       if (frames.length) imageFor(frames[nowIdx]);
-      const preload = () => frames.forEach(f => imageFor(f));  // préchargement (cache du navigateur)
+      const preload = () => frames.forEach(f => { imageFor(f); if (f.hd) imageFor({ file: f.hd }); });  // préchargement (cache du navigateur)
       if (page === 'radar') preload(); else setTimeout(() => (window.requestIdleCallback || ((fn) => fn()))(preload, { timeout: 4000 }), 4000);  // après l'affichage des Relevés
       const same = frames.findIndex(f => f.time === curTime);
       show(wasNow || same < 0 ? nowIdx : same);
@@ -637,17 +647,23 @@ const POINTS = [
   // Mémoire des couleurs déjà lues (image + point) : chaque image n'est lue qu'une fois par point.
   // Sans ça, relire ~40 grandes images à chaque arrivée d'image obligeait le téléphone à les redécoder sans cesse (lenteurs).
   const clsMemo = new Map();
-  function classAt(img, lat, lon) {
+  function classAt(img, lat, lon, bounds) {
     if (!img.complete || !img.naturalWidth || !meta) return null;
     const key = img.src + '|' + lat.toFixed(4) + ',' + lon.toFixed(4);
     if (clsMemo.has(key)) return clsMemo.get(key);
     if (clsMemo.size > 3000) clsMemo.clear();
-    const v = classAtLu(img, lat, lon);
+    const v = classAtLu(img, lat, lon, bounds || meta.bounds);
     clsMemo.set(key, v);
     return v;
   }
-  function classAtLu(img, lat, lon) {
-    const [[s, w], [n, e]] = meta.bounds;
+  // pluie au point : dans l'image HD si le point est dans son carré, sinon dans l'image France
+  function rainAt(f, lat, lon) {
+    const hb = meta.hd_bounds;
+    if (f.hd && hb && lat >= hb[0][0] && lat <= hb[1][0] && lon >= hb[0][1] && lon <= hb[1][1]) return classAt(imageFor({ file: f.hd }), lat, lon, hb);
+    return classAt(imageFor(f), lat, lon);
+  }
+  function classAtLu(img, lat, lon, bounds) {
+    const [[s, w], [n, e]] = bounds;
     if (lat < s || lat > n || lon < w || lon > e) return null;
     const x = (lon - w) / (e - w) * img.naturalWidth;
     const y = (mercY(n) - mercY(lat)) / (mercY(n) - mercY(s)) * img.naturalHeight;
@@ -674,7 +690,7 @@ const POINTS = [
     const cells = $('strip').children;
     const cls = [];
     frames.forEach((f, k) => {
-      const c = classAt(imageFor(f), p.lat, p.lng);
+      const c = rainAt(f, p.lat, p.lng);
       const wet = c !== null && c >= 0;
       if (cells[k]) cells[k].style.background = wet ? meta.legend[c].color : '#eef1f4';
       cls[k] = wet ? c : -1;

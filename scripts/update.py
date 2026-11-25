@@ -50,6 +50,12 @@ WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
 DEG_PER_PX = 0.015  # ~ 1,1 km (0.010 avant le 25/11/2026) : images 2,2 fois plus légères à décoder pour les téléphones
 SMOOTH_SIGMA_PX = 0.9  # lissage façon Météus (0 = aucun) ; 1.3 avec des pixels de 0.010°, réduit pour garder le même flou en km
 
+# Image haute définition autour du lieu de config.json (demande d'Alan, 25/11/2026) : pleine précision du radar
+# (500 m) sur ±HD_KM, en plus de l'image France allégée ; dans l'image France, ce carré est laissé vide.
+HD_KM = 110
+HD_DEG_PER_PX = 0.005
+HD_SMOOTH_SIGMA_PX = 1.2
+
 PAST_HOURS = 2.0
 RADAR_STEP_MIN = 5  # une image toutes les 5 min (10 min avant le 25/11/2026), pour une animation plus fluide
 FORECAST_HOURS = 3.0
@@ -93,11 +99,11 @@ WIDTH = int(round((EAST - WEST) / DEG_PER_PX))
 HEIGHT = int(round((merc_y(NORTH) - merc_y(SOUTH)) / np.radians(DEG_PER_PX)))
 
 
-def output_latlon() -> tuple[np.ndarray, np.ndarray]:
+def output_latlon(west=WEST, south=SOUTH, east=EAST, north=NORTH, width=WIDTH, height=HEIGHT) -> tuple[np.ndarray, np.ndarray]:
     """Latitude et longitude du centre de chaque pixel de l'image de sortie (ligne 0 = nord)."""
-    lon = WEST + (np.arange(WIDTH) + 0.5) * (EAST - WEST) / WIDTH
-    y_top, y_bottom = merc_y(NORTH), merc_y(SOUTH)
-    y = y_top - (np.arange(HEIGHT) + 0.5) * (y_top - y_bottom) / HEIGHT
+    lon = west + (np.arange(width) + 0.5) * (east - west) / width
+    y_top, y_bottom = merc_y(north), merc_y(south)
+    y = y_top - (np.arange(height) + 0.5) * (y_top - y_bottom) / height
     lat = np.degrees(2 * np.arctan(np.exp(y)) - np.pi / 2)
     return np.meshgrid(lon, lat)
 
@@ -105,19 +111,42 @@ def output_latlon() -> tuple[np.ndarray, np.ndarray]:
 LON_GRID, LAT_GRID = output_latlon()
 
 
+def _hd_bounds():
+    try:
+        lieu = json.loads(Path("config.json").read_text())["lieu"]
+        lat, lon = float(lieu["lat"]), float(lieu["lon"])
+    except Exception:
+        return None
+    dlat = HD_KM / 111.2
+    dlon = HD_KM / (111.32 * np.cos(np.radians(lat)))
+    return lon - dlon, lat - dlat, lon + dlon, lat + dlat  # ouest, sud, est, nord
+
+
+HD = _hd_bounds()
+if HD:
+    HD_W = int(round((HD[2] - HD[0]) / HD_DEG_PER_PX))
+    HD_H = int(round((merc_y(HD[3]) - merc_y(HD[1])) / np.radians(HD_DEG_PER_PX)))
+    HD_LON, HD_LAT = output_latlon(*HD, HD_W, HD_H)
+    # pixels de l'image France couverts par l'image HD (laissés vides dans l'image France)
+    HD_MASK = (LON_GRID >= HD[0]) & (LON_GRID <= HD[2]) & (LAT_GRID >= HD[1]) & (LAT_GRID <= HD[3])
+
+
 # ----------------------------------------------------------------------------------------------- rendu
 
 
-def render(rate_mm_h: np.ndarray, path: Path) -> None:
-    """Lisse le champ de pluie (mm/h, NaN = hors couverture), le classe et l'écrit en PNG à palette transparent."""
+def render(rate_mm_h: np.ndarray, path: Path, sigma: float = SMOOTH_SIGMA_PX, hole=None) -> None:
+    """Lisse le champ de pluie (mm/h, NaN = hors couverture), le classe et l'écrit en PNG à palette transparent.
+    hole : pixels laissés vides (zone couverte par l'image haute définition)."""
     valid = np.isfinite(rate_mm_h)
     values = np.where(valid, rate_mm_h, 0.0).astype(np.float32)
-    if SMOOTH_SIGMA_PX > 0:
-        weight = gaussian_filter(valid.astype(np.float32), SMOOTH_SIGMA_PX)
-        blurred = gaussian_filter(values, SMOOTH_SIGMA_PX)
+    if sigma > 0:
+        weight = gaussian_filter(valid.astype(np.float32), sigma)
+        blurred = gaussian_filter(values, sigma)
         values = np.where(weight > 0.2, blurred / np.maximum(weight, 1e-6), 0.0)
     classes = np.searchsorted(np.asarray(THRESHOLDS, dtype=np.float32), values, side="right").astype(np.uint8)
     classes[~valid] = 0
+    if hole is not None:
+        classes[hole] = 0
     img = Image.fromarray(classes, mode="P")
     palette = []
     for c in COLORS:
@@ -159,10 +188,17 @@ def stereo(lat, lon):
     return 619652.07 + rho * np.sin(lam), 5262818.34 - rho * np.cos(lam)
 
 
-_SX, _SY = stereo(LAT_GRID, LON_GRID)
-R_COL = np.floor(_SX / R_PIXEL).astype(np.int64)
-R_ROW = np.floor((R_SIZE * R_PIXEL - _SY) / R_PIXEL).astype(np.int64)
-R_INSIDE = (R_COL >= 0) & (R_COL < R_SIZE) & (R_ROW >= 0) & (R_ROW < R_SIZE)
+def _radar_index(lat, lon):
+    sx, sy = stereo(lat, lon)
+    col = np.floor(sx / R_PIXEL).astype(np.int64)
+    row = np.floor((R_SIZE * R_PIXEL - sy) / R_PIXEL).astype(np.int64)
+    return row, col, (col >= 0) & (col < R_SIZE) & (row >= 0) & (row < R_SIZE)
+
+
+R_ROW, R_COL, R_INSIDE = _radar_index(LAT_GRID, LON_GRID)
+if HD:
+    HD_ROW, HD_COL, HD_INSIDE = _radar_index(HD_LAT, HD_LON)
+RADAR_HD: dict = {}  # heure -> pluie (mm/h) sur la grille HD, rempli par decode_radar_h5
 
 
 def _text(v) -> str:
@@ -195,13 +231,17 @@ def decode_radar_h5(content: bytes) -> tuple[datetime, np.ndarray] | None:
             data = f["dataset1/data1/data"][:]
         except KeyError:
             return None
-    raw = np.zeros(LAT_GRID.shape, dtype=np.uint16)
-    raw[:] = nodata
-    raw[R_INSIDE] = data[R_ROW[R_INSIDE], R_COL[R_INSIDE]]
-    rate = (raw.astype(np.float32) * gain + offset) * 12.0  # cumul 5 min -> mm/h
-    rate[raw == undetect] = 0.0
-    rate[raw == nodata] = np.nan
-    return end, rate
+    def sample(shape, row, col, inside):
+        raw = np.full(shape, nodata, dtype=np.uint16)
+        raw[inside] = data[row[inside], col[inside]]
+        rate = (raw.astype(np.float32) * gain + offset) * 12.0  # cumul 5 min -> mm/h
+        rate[raw == undetect] = 0.0
+        rate[raw == nodata] = np.nan
+        return rate
+
+    if HD:
+        RADAR_HD[end] = sample(HD_LAT.shape, HD_ROW, HD_COL, HD_INSIDE)
+    return end, sample(LAT_GRID.shape, R_ROW, R_COL, R_INSIDE)
 
 
 def iter_archive(content: bytes):
@@ -427,13 +467,20 @@ def point_values(frames: dict[datetime, np.ndarray]) -> dict[str, float]:
         lieu = json.loads(Path("config.json").read_text())["lieu"]
     except Exception:
         return {}
-    i = (lieu["lon"] - WEST) / (EAST - WEST) * WIDTH
-    j = (merc_y(NORTH) - merc_y(lieu["lat"])) / (merc_y(NORTH) - merc_y(SOUTH)) * HEIGHT
+    if HD:  # grille HD (pixels de ~500 m) : 3 x 3 pixels ≈ 1,5 km autour du lieu
+        w_, s_, e_, n_ = HD
+        i = (lieu["lon"] - w_) / (e_ - w_) * HD_W
+        j = (merc_y(n_) - merc_y(lieu["lat"])) / (merc_y(n_) - merc_y(s_)) * HD_H
+    else:
+        i = (lieu["lon"] - WEST) / (EAST - WEST) * WIDTH
+        j = (merc_y(NORTH) - merc_y(lieu["lat"])) / (merc_y(NORTH) - merc_y(SOUTH)) * HEIGHT
     i0, j0 = int(i), int(j)
     out = {}
     for t, rate in frames.items():
         if t.minute % 5:
             continue
+        if HD and t in RADAR_HD:
+            rate = RADAR_HD[t]
         block = rate[max(0, j0 - 1) : j0 + 2, max(0, i0 - 1) : i0 + 2]
         vals = block[np.isfinite(block)]
         if vals.size:
@@ -465,17 +512,23 @@ def load_previous() -> dict:
         t = datetime.fromisoformat(fr["time"].replace("Z", "+00:00"))
         if fr["kind"] == "radar" and t < cutoff:
             continue
-        target = OUT / fr["file"]
-        if not target.exists():
+        ok = True
+        for key in ("file", "hd"):
+            if key not in fr:
+                continue
+            target = OUT / fr[key]
+            if target.exists():
+                continue
             try:
-                img = requests.get(f"{PAGES_URL}/{fr['file']}", timeout=30)
+                img = requests.get(f"{PAGES_URL}/{fr[key]}", timeout=30)
                 if not img.ok:
-                    continue
+                    raise ValueError(img.status_code)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(img.content)
             except Exception:
-                continue
-        kept.append(fr)
+                ok = False  # image manquante (l'image France d'une image HD a un trou : on ne la garde pas seule)
+        if ok:
+            kept.append(fr)
     state["frames"] = kept
     log(f"État précédent : {len(kept)} images reprises")
     return state
@@ -499,8 +552,15 @@ def main() -> int:
                 continue  # on garde le pas RADAR_STEP_MIN, plus la toute dernière image
             iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
             path = DATA / "r" / f"{fname(t)}.png"
-            render(rate, path)
-            frames[("radar", iso)] = {"kind": "radar", "time": iso, "file": f"data/r/{path.name}"}
+            entry = {"kind": "radar", "time": iso, "file": f"data/r/{path.name}"}
+            if HD and t in RADAR_HD:
+                hd_path = DATA / "rh" / f"{fname(t)}.png"
+                render(RADAR_HD[t], hd_path, sigma=HD_SMOOTH_SIGMA_PX)
+                render(rate, path, hole=HD_MASK)
+                entry["hd"] = f"data/rh/{hd_path.name}"
+            else:
+                render(rate, path)
+            frames[("radar", iso)] = entry
 
     radar_times = sorted(datetime.fromisoformat(k[1].replace("Z", "+00:00")) for k in frames if k[0] == "radar")
     # Les images radar à :05 sont retirées dès qu'une plus récente existe.
@@ -548,6 +608,7 @@ def main() -> int:
         "forecast_complete": bool(state.get("forecast_complete")),
         "bounds": [[SOUTH, WEST], [NORTH, EAST]],
         "size": [WIDTH, HEIGHT],
+        "hd_bounds": [[HD[1], HD[0]], [HD[3], HD[2]]] if HD else None,
         "legend": [
             {"min": th, "color": "#%02x%02x%02x" % c[:3]} for th, c in zip(THRESHOLDS, COLORS[1:], strict=True)
         ],
@@ -556,8 +617,8 @@ def main() -> int:
     (DATA / "frames.json").write_text(json.dumps(out, indent=1))
 
     # Ménage : les images qui ne sont plus listées.
-    listed = {OUT / f["file"] for f in ordered}
-    for sub in ("r", "p"):
+    listed = {OUT / f[k] for f in ordered for k in ("file", "hd") if k in f}
+    for sub in ("r", "rh", "p"):
         for p in (DATA / sub).glob("*.png") if (DATA / sub).exists() else []:
             if p not in listed:
                 p.unlink()
@@ -580,7 +641,7 @@ def main() -> int:
 
     n_r = sum(f["kind"] == "radar" for f in ordered)
     n_p = len(ordered) - n_r
-    log(f"Publié : {n_r} images radar, {n_p} images de prévision ({WIDTH}x{HEIGHT} px)")
+    log(f"Publié : {n_r} images radar, {n_p} images de prévision ({WIDTH}x{HEIGHT} px)" + (f", HD autour du lieu {HD_W}x{HD_H} px" if HD else ""))
     return 0
 
 
