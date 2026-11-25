@@ -2,15 +2,19 @@ name: Sonde PIAF (temporaire)
 on:
   push:
     branches: [main]
-    paths: ['scripts/sonde_piaf.py', '.github/workflows/sonde.yml']
+    paths: ['scripts/sonde_piaf.py', '.github/workflows/sonde.yml', 'scripts/update.py']
 permissions:
   contents: read
 jobs:
   sonde:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
       - run: python3 scripts/sonde_piaf.py
         env:
           METEOFRANCE_KEY: ${{ secrets.METEOFRANCE_KEY }}

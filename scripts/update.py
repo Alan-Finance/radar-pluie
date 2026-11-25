@@ -44,6 +44,11 @@ RADAR_URL = f"{API}/DPRadar/v1/mosaiques/METROPOLE/observations/LAME_D_EAU"
 PAQUET_URL = f"{API}/DPPaquetRadar/v1/mosaique/paquet"
 AROMEPI_URL = f"{API}/aromepi/1.0/wcs/MF-NWP-HIGHRES-AROMEPI-001-FRANCE-WCS"
 AROMEPI_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}"
+# PIAF (prévision immédiate agrégée fusionnée, 25/11/2026) : radar extrapolé + AROME-PI, une image toutes les 5 min
+# jusqu'à +3 h 15, nouveau run toutes les 5 min. Lame d'eau en mm sur 5 min (couverture _PT5M). AROME-PI reste en secours.
+PIAF_URL = "https://api.meteofrance.fr/pro/piaf/1.0/wcs/MF-NWP-HIGHRES-PIAF-001-FRANCE-WCS"
+PIAF_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}_PT5M"
+PIAF_STEP_MIN = 5
 
 # Zone dessinée (ouest, sud, est, nord) = celle de la prévision AROME-PI : métropole + Corse.
 WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
@@ -408,6 +413,98 @@ def aromepi_get(coverage: str, valid: datetime, run: datetime) -> requests.Respo
             return r
         time.sleep(0.7)
     return r
+
+
+def iter_grib(data: bytes):
+    """Les messages GRIB2 d'un fichier, dans l'ordre."""
+    pos = 0
+    while True:
+        pos = data.find(b"GRIB", pos)
+        if pos < 0 or pos + 16 > len(data):
+            return
+        total = struct.unpack(">Q", data[pos + 8 : pos + 16])[0]
+        yield data[pos : pos + total]
+        pos += total
+
+
+def piaf_get(coverage: str, run: datetime, valid: datetime, valid_end: datetime | None = None) -> requests.Response:
+    params = [
+        ("service", "WCS"),
+        ("version", "2.0.1"),
+        ("coverageid", coverage),
+        ("format", "application/wmo-grib"),
+        ("subset", f"long({WEST},{EAST})"),
+        ("subset", f"lat({SOUTH},{NORTH})"),
+    ]
+    iso = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
+    params.append(("subset", f"time({iso(valid)},{iso(valid_end)})" if valid_end else f"time({iso(valid)})"))
+    return SESSION.get(f"{PIAF_URL}/GetCoverage", params=params, timeout=90)
+
+
+def piaf_latest_run(now: datetime) -> datetime | None:
+    """Le run PIAF le plus récent publié (un run toutes les 5 min, en ligne ~10 min après)."""
+    base = now.replace(second=0, microsecond=0) - timedelta(minutes=now.minute % PIAF_STEP_MIN)
+    for back in range(0, 9):
+        run = base - timedelta(minutes=PIAF_STEP_MIN * back)
+        r = SESSION.get(
+            f"{PIAF_URL}/DescribeCoverage",
+            params=[("service", "WCS"), ("version", "2.0.1"), ("coverageID", PIAF_COVERAGE.format(run=run_stamp(run)))],
+            timeout=30,
+        )
+        if r.ok and b"CoverageDescription" in r.content:
+            return run
+        time.sleep(0.3)
+    return None
+
+
+def fetch_piaf(existing_run: str | None, start: datetime, end: datetime) -> tuple[str | None, dict[datetime, np.ndarray]]:
+    """Le run PIAF le plus récent : (identifiant, {échéance: pluie mm/h}) de start (exclu) à end (inclus). Rien si déjà à jour."""
+    now = datetime.now(UTC)
+    run = piaf_latest_run(now)
+    if run is None:
+        raise RuntimeError("aucun run PIAF publié depuis 45 min")
+    stamp = "PIAF " + run_stamp(run)
+    if existing_run == stamp:
+        log(f"PIAF : run {run_stamp(run)} déjà en place")
+        return None, {}
+    coverage = PIAF_COVERAGE.format(run=run_stamp(run))
+    first = max(run, start - timedelta(minutes=start.minute % PIAF_STEP_MIN)) + timedelta(minutes=PIAF_STEP_MIN)
+    last = min(run + timedelta(minutes=195), end)
+    steps = []
+    t = first
+    while t <= last:
+        steps.append(t)
+        t += timedelta(minutes=PIAF_STEP_MIN)
+    if not steps:
+        return None, {}
+    frames: dict[datetime, np.ndarray] = {}
+
+    def add(t: datetime, msg: bytes) -> None:
+        grid, lat0, lon0, dlat, dlon = decode_grib2(msg)
+        frames[t] = grib_to_output(grid * (60 / PIAF_STEP_MIN), lat0, lon0, dlat, dlon)  # mm en 5 min -> mm/h
+
+    # Toutes les échéances en une seule requête si le service l'accepte, sinon une par une.
+    try:
+        r = piaf_get(coverage, run, steps[0], steps[-1])
+        msgs = list(iter_grib(r.content)) if r.ok else []
+        log(f"PIAF run {run_stamp(run)} : requête groupée HTTP {r.status_code}, {len(r.content) / 1e6:.1f} Mo, {len(msgs)} message(s) pour {len(steps)} échéances")
+        if len(msgs) == len(steps):
+            for t, m in zip(steps, msgs):
+                add(t, m)
+    except Exception as exc:
+        log(f"PIAF requête groupée en échec : {safe_error(exc)}")
+    if len(frames) != len(steps):
+        frames.clear()
+        for t in steps:
+            r = piaf_get(coverage, run, t)
+            if not (r.ok and r.content[:4] == b"GRIB"):
+                raise RuntimeError(f"échéance {t.strftime('%H:%M')} : HTTP {r.status_code}")
+            add(t, r.content)
+            time.sleep(1.3)  # quota PIAF : 50 requêtes / minute
+    g = next(iter(frames.values()))
+    finite = g[np.isfinite(g)]
+    log(f"PIAF run {run_stamp(run)} : {len(frames)} échéances de {steps[0].strftime('%H:%M')} à {steps[-1].strftime('%H:%M')} UTC, max 1re image {finite.max() if finite.size else 0:.1f} mm/h")
+    return stamp, frames
 
 
 def fetch_forecast(existing_run: str | None) -> tuple[str | None, dict[datetime, np.ndarray]]:

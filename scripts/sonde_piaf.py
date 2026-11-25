@@ -1,33 +1,22 @@
-"""Sonde temporaire (7) : accès PIAF avec la clé du robot (clé jamais affichée) + liste des couvertures."""
-import os, re, urllib.request
+"""Sonde temporaire (8) : essai de fetch_piaf (sans rien publier)."""
+import sys, time
+from datetime import UTC, datetime, timedelta
+sys.path.insert(0, "scripts")
+import numpy as np
+import update as U
 
-def get(url, headers=None):
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "radar-pluie", **(headers or {})})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            b = r.read()
-            print(f"--- {url}\n    HTTP {r.status} {len(b)} o")
-            return b.decode("utf-8", "replace")
-    except urllib.error.HTTPError as e:
-        print(f"--- {url}\n    HTTP {e.code} : {e.read()[:300]!r}")
-    except Exception as e:
-        print(f"--- {url}\n    ERREUR {e}")
-    return ""
-
-key = os.environ.get("METEOFRANCE_KEY", "")
-H = {"apikey": key}
-for host in ("https://api.meteofrance.fr", "https://public-api.meteofrance.fr"):
-    t = get(f"{host}/pro/piaf/1.0/wcs/MF-NWP-HIGHRES-PIAF-001-FRANCE-WCS/GetCapabilities?service=WCS&version=2.0.1&language=fre", H)
-    if t:
-        ids = re.findall(r"<(?:wcs:)?CoverageId>([^<]+)<", t)
-        print("NB couvertures:", len(ids))
-        for i in ids[:15] + ids[-15:]:
-            print("  ", i)
-        # échantillon de l'en-tête
-        print(t[:1500])
-        if ids:
-            d = get(f"{host}/pro/piaf/1.0/wcs/MF-NWP-HIGHRES-PIAF-001-FRANCE-WCS/DescribeCoverage?service=WCS&version=2.0.1&coverageID={ids[-1]}", H)
-            print(d[:5000])
-        break
-# contrôle : la clé marche-t-elle toujours pour AROME-PI ?
-get("https://public-api.meteofrance.fr/public/aromepi/1.0/wcs/MF-NWP-HIGHRES-AROMEPI-001-FRANCE-WCS/GetCapabilities?service=WCS&version=2.0.1&language=fre", H)
+now = datetime.now(UTC)
+start = now - timedelta(minutes=12)
+t0 = time.time()
+stamp, fc = U.fetch_piaf(None, start, start + timedelta(hours=2, minutes=30))
+print("run", stamp, "nb", len(fc), "durée", round(time.time() - t0, 1), "s")
+for t, g in sorted(fc.items())[:3] + sorted(fc.items())[-2:]:
+    f = g[np.isfinite(g)]
+    print(t.strftime("%H:%M"), "pixels pluie>0.1:", int((f > 0.1).sum()), "p99", round(float(np.percentile(f, 99.9)), 2), "max", round(float(f.max()), 1))
+# cohérence des unités : PT15M ~ 3 x PT5M ?
+run = U.piaf_latest_run(now)
+t = run + timedelta(minutes=15)
+a = U.decode_grib2(U.piaf_get(U.PIAF_COVERAGE.format(run=U.run_stamp(run)), run, t).content)[0]
+b = U.decode_grib2(U.piaf_get(U.PIAF_COVERAGE.format(run=U.run_stamp(run)).replace("_PT5M", "_PT15M"), run, t).content)[0]
+m = np.isfinite(a) & np.isfinite(b) & (b > 0.5)
+print("somme PT5M", float(np.nansum(a)), "somme PT15M", float(np.nansum(b)), "rapport", float(np.nansum(b) / max(np.nansum(a), 1e-9)))
