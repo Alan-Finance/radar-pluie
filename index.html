@@ -462,8 +462,8 @@ const POINTS = [
     clearTimeout(vecTimer); setFond('relief', false);
     toast('Carte détaillée indisponible : fond Relief en attendant', 5000);
   }
-  map.on('sourcedata', (e) => { if (fondKey === 'osm' && e.tile && e.sourceId !== 'radar') vecOk = true; });
-  map.on('error', (e) => { if (fondKey === 'osm' && !vecOk && (!styleReady || (e.sourceId && e.sourceId !== 'radar')) && ++vecErr >= 3) secours(); });
+  map.on('sourcedata', (e) => { if (fondKey === 'osm' && e.tile && !RL.includes(e.sourceId)) vecOk = true; });
+  map.on('error', (e) => { if (fondKey === 'osm' && !vecOk && (!styleReady || (e.sourceId && !RL.includes(e.sourceId))) && ++vecErr >= 3) secours(); });
   // Fond par défaut : OpenStreetMap détaillé (comme Pleinchamp), appliqué une fois même si un autre fond était enregistré.
   let fondInitial = 'osm';
   try { if (localStorage.getItem('radar-pluie-fond-v2')) fondInitial = localStorage.getItem('radar-pluie-fond') || 'osm'; else localStorage.setItem('radar-pluie-fond-v2', '1'); } catch {}
@@ -477,35 +477,49 @@ const POINTS = [
   let meta = null, frames = [], images = {}, idx = 0, playing = false, timer = null, nowIdx = 0;
   const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
 
-  // Une seule image radar sur la carte (source « image » de MapLibre), placée sous les noms de lieux pour qu'ils restent lisibles.
-  let radarUrl = null;
+  // Deux images radar superposées (A et B), sous les noms de lieux : l'image suivante se charge dans celle
+  // qui est cachée, puis fondu enchaîné, pour voir les averses se déplacer et grossir sans à-coups.
+  const RL = ['radarA', 'radarB'];
+  let front = null, frontUrl = null, pendingUrl = null, pendingFade = 0, fadeNext = 0;
   const radarCoords = () => { const [[s, w], [n, e]] = meta.bounds; return [[w, n], [e, n], [e, s], [w, s]]; };
   const firstLabel = () => { const l = map.getStyle().layers.find(l => l.type === 'symbol' || l.id === 'labels'); return l && l.id; };
   function ensureLayers() { if (meta && frames.length) display(frames[idx]); }
-  function display(f) {
+  function display(f, fade = 0) {
     if (!meta || !styleReady || !f) return;
-    const src = map.getSource('radar');
-    if (!src) {
-      map.addSource('radar', { type: 'image', url: f.file, coordinates: radarCoords() });
-      map.addLayer({ id: 'radar', type: 'raster', source: 'radar', paint: { 'raster-opacity': opacity, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstLabel());
-      radarUrl = f.file; radarBusy = true; busyTimer = setTimeout(radarLoaded, 3000);
-    } else if (radarUrl !== f.file) {
-      // une image à la fois : si la précédente charge encore, on garde seulement la dernière demandée
-      if (radarBusy) { radarNext = f; return; }
-      radarBusy = true; radarUrl = f.file; clearTimeout(busyTimer); busyTimer = setTimeout(radarLoaded, 3000);
-      src.updateImage({ url: f.file, coordinates: radarCoords() });
+    if (!map.getSource('radarA')) {
+      RL.forEach((id, k) => {
+        map.addSource(id, { type: 'image', url: f.file, coordinates: radarCoords() });
+        map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': k === 0 ? opacity : 0, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, firstLabel());
+      });
+      front = 'radarA'; frontUrl = f.file; return;
     }
+    if (radarBusy) { radarNext = [f, fade]; return; }  // une image à la fois : on garde seulement la dernière demandée
+    if (f.file === frontUrl) return;
+    const back = front === 'radarA' ? 'radarB' : 'radarA';
+    radarBusy = true; pendingUrl = f.file; pendingFade = fade;
+    clearTimeout(busyTimer); busyTimer = setTimeout(radarLoaded, 3000);
+    map.getSource(back).updateImage({ url: f.file, coordinates: radarCoords() });
   }
   let radarBusy = false, radarNext = null, busyTimer = null;
-  window.__radar = () => ({ url: radarUrl, busy: radarBusy });
+  window.__radar = () => ({ url: frontUrl, front, busy: radarBusy });
   function radarLoaded() {
-    clearTimeout(busyTimer); radarBusy = false;
-    if (radarNext) { const n = radarNext; radarNext = null; display(n); }
+    clearTimeout(busyTimer);
+    if (radarBusy && pendingUrl) {
+      const back = front === 'radarA' ? 'radarB' : 'radarA', d = pendingFade;
+      // l'image qui arrive apparaît sur toute la durée ; l'ancienne s'efface un peu après, pour ne pas « blanchir » au milieu du fondu
+      map.setPaintProperty(back, 'raster-opacity-transition', { duration: d, delay: 0 });
+      map.setPaintProperty(front, 'raster-opacity-transition', { duration: Math.round(d * 0.6), delay: Math.round(d * 0.4) });
+      map.setPaintProperty(back, 'raster-opacity', opacity);
+      map.setPaintProperty(front, 'raster-opacity', 0);
+      front = back; frontUrl = pendingUrl; pendingUrl = null;
+    }
+    radarBusy = false;
+    if (radarNext) { const [n, fd] = radarNext; radarNext = null; display(n, fd); }
   }
-  map.on('sourcedata', (e) => { if (e.sourceId === 'radar' && e.sourceDataType === 'content') radarLoaded(); });
+  map.on('sourcedata', (e) => { if (RL.includes(e.sourceId) && e.sourceDataType === 'content' && radarBusy) radarLoaded(); });
   // Après chaque changement de fond : remettre le radar et le cercle de précision GPS.
   map.on('style.load', () => {
-    styleReady = true; radarUrl = null; radarBusy = false; radarNext = null;
+    styleReady = true; front = null; frontUrl = null; pendingUrl = null; radarBusy = false; radarNext = null;
     document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
     map.addSource('me-acc', { type: 'geojson', data: accGeo() });
     map.addLayer({ id: 'me-acc', type: 'fill', source: 'me-acc', paint: { 'fill-color': '#1f8ef1', 'fill-opacity': 0.06 } });
@@ -526,8 +540,9 @@ const POINTS = [
   function show(i) {
     if (!frames.length) return;
     idx = Math.max(0, Math.min(frames.length - 1, i));
-    display(frames[idx]);
+    display(frames[idx], fadeNext); fadeNext = 0;
     imageFor(frames[Math.min(idx + 1, frames.length - 1)]);
+    imageFor(frames[Math.min(idx + 2, frames.length - 1)]);
     const f = frames[idx], d = new Date(f.time);
     const future = f.kind === 'prevision';
     $('kind').className = 'kind ' + f.kind;
@@ -556,12 +571,17 @@ const POINTS = [
     $('strip').innerHTML = frames.map(() => '<span></span>').join('');
   }
 
-  // Lecture : une image toutes les FRAME_MS, avec une pause sur la dernière avant de reboucler.
+  // Lecture au rythme du temps réel : MS_PAR_MIN ms par minute entre deux images (radar 5 min → 250 ms,
+  // prévision 15 min → 750 ms), avec fondu enchaîné, puis une pause sur la dernière avant de reboucler.
+  const MS_PAR_MIN = 50;
+  const ecart = (k) => k + 1 < frames.length ? Math.min(900, Math.max(200, (new Date(frames[k + 1].time) - new Date(frames[k].time)) / 60000 * MS_PAR_MIN)) : FRAME_MS;
   function step() {
     if (!playing) return;
     const last = idx >= frames.length - 1;
+    const d = last ? FRAME_MS : ecart(idx);
+    fadeNext = last ? 300 : Math.round(d * 0.9);
     show(last ? 0 : idx + 1);
-    timer = setTimeout(step, idx >= frames.length - 1 ? END_PAUSE_MS : FRAME_MS);
+    timer = setTimeout(step, idx >= frames.length - 1 ? END_PAUSE_MS : ecart(idx));
   }
   function play() { playing = true; $('play').innerHTML = PAUSE_SVG; $('play').setAttribute('aria-label', 'Pause'); clearTimeout(timer); timer = setTimeout(step, FRAME_MS); }
   function pause() { playing = false; $('play').innerHTML = PLAY_SVG; $('play').setAttribute('aria-label', 'Lecture'); clearTimeout(timer); }
@@ -569,7 +589,7 @@ const POINTS = [
   $('play').onclick = () => playing ? pause() : play();
   // ↻ : revient à maintenant et va chercher les dernières images
   $('now').onclick = () => { pause(); show(nowIdx); loadFrames(false).then(() => show(nowIdx)); };
-  $('slider').oninput = (e) => { pause(); show(parseInt(e.target.value, 10)); };
+  $('slider').oninput = (e) => { pause(); fadeNext = 150; show(parseInt(e.target.value, 10)); };
 
   async function loadFrames(first) {
     try {

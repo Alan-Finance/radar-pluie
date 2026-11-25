@@ -51,7 +51,7 @@ DEG_PER_PX = 0.010  # ~ 750 m à la latitude de la France (images plus légères
 SMOOTH_SIGMA_PX = 1.3  # lissage façon Météus (0 = aucun)
 
 PAST_HOURS = 2.0
-RADAR_STEP_MIN = 10
+RADAR_STEP_MIN = 5  # une image toutes les 5 min (10 min avant le 25/11/2026), pour une animation plus fluide
 FORECAST_HOURS = 3.0
 
 # Seuils (mm/h) et couleurs (R, V, B, A) des classes 1..9 ; la classe 0 est transparente.
@@ -496,7 +496,7 @@ def main() -> int:
         for t, rate in radar_now.items():
             latest = max([t] + [datetime.fromisoformat(k[1].replace("Z", "+00:00")) for k in frames if k[0] == "radar"])
             if t.minute % RADAR_STEP_MIN != 0 and t < latest:
-                continue  # on garde un pas de 10 min, plus la toute dernière image
+                continue  # on garde le pas RADAR_STEP_MIN, plus la toute dernière image
             iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
             path = DATA / "r" / f"{fname(t)}.png"
             render(rate, path)
