@@ -1,24 +1,27 @@
-"""Sonde temporaire (9) : images PIAF et radar côte à côte (sans rien publier)."""
-import sys
+"""Sonde temporaire (10) : PIAF bien calé sur le radar ? (recouvrement des zones de pluie à la même heure)."""
+import sys, base64, io
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 sys.path.insert(0, "scripts")
 import numpy as np
+from PIL import Image
 import update as U
 
-out = Path("sonde"); out.mkdir(exist_ok=True)
 radar = U.fetch_radar()
 tr = max(radar)
-U.render(radar[tr], out / f"radar_{tr:%H%M}.png")
 run = U.piaf_latest_run(datetime.now(UTC))
 cov = U.PIAF_COVERAGE.format(run=U.run_stamp(run))
-for m in (5, 30, 90, 180):
-    t = run + timedelta(minutes=m)
-    g, lat0, lon0, dlat, dlon = U.decode_grib2(U.piaf_get(cov, run, t).content)
-    rate = U.grib_to_output(g * 12, lat0, lon0, dlat, dlon)
-    U.render(rate, out / f"piaf_{t:%H%M}.png")
-    j, i = np.unravel_index(np.nanargmax(g), g.shape)
-    f = g[np.isfinite(g)]
-    print(t.strftime("%H:%M"), "max", float(f.max()) * 12, "à lat", lat0 + j * dlat, "lon", lon0 + i * dlon, "nb NaN", int(np.isnan(g).sum()), "valeurs distinctes hautes", np.unique(np.round(f[f * 12 > 60], 2))[:10])
-f = radar[tr][np.isfinite(radar[tr])]
-print("radar", tr.strftime("%H:%M"), "pixels>0.1", int((f > 0.1).sum()), "max", float(f.max()))
+t = run + timedelta(minutes=5)
+g, lat0, lon0, dlat, dlon = U.decode_grib2(U.piaf_get(cov, run, t).content)
+p = U.grib_to_output(g * 12, lat0, lon0, dlat, dlon)
+r = radar[tr]
+A = np.isfinite(r) & (r > 0.5); B = np.isfinite(p) & (p > 0.5)
+iou = lambda a, b: (a & b).sum() / max((a | b).sum(), 1)
+print("radar", tr.strftime("%H:%M"), "piaf", t.strftime("%H:%M"), "IoU", round(iou(A, B), 3), "IoU inversé N-S", round(iou(A, B[::-1]), 3), "IoU décalé 20px", round(iou(A, np.roll(B, 20, 1)), 3))
+# vignette autour de la maison : radar | piaf (vert = pluie > 0.5 mm/h)
+lat, lon = 47.0394, 0.4583
+J = np.abs(U.LAT_GRID[:, 0] - lat).argmin(); I = np.abs(U.LON_GRID[0] - lon).argmin()
+win = lambda a: np.where(np.isfinite(a[J-150:J+150, I-150:I+150]), a[J-150:J+150, I-150:I+150], 0)
+img = np.concatenate([win(r), np.full((300, 4), 99), win(p)], 1)
+im = Image.fromarray(np.where(img > 98, 0, np.clip(img * 40, 0, 255)).astype(np.uint8)).resize((302, 150))
+buf = io.BytesIO(); im.save(buf, "PNG")
+print("VIGNETTE", base64.b64encode(buf.getvalue()).decode())
