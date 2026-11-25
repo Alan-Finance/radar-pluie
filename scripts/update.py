@@ -3,8 +3,9 @@
 Lancé toutes les 10 minutes par GitHub Actions (.github/workflows/radar.yml).
 
   * Radar (passé)      : mosaïque « lame d'eau » 500 m de Météo-France (API DPRadar + DPPaquetRadar),
-                         une image toutes les 10 minutes sur les 2 dernières heures.
-  * Prévision (futur)  : modèle AROME-PI (prévision immédiate), une image tous les 1/4 d'heure jusqu'à +3 h.
+                         une image toutes les 5 minutes sur les 2 h 30 dernières.
+  * Prévision (futur)  : PIAF (radar extrapolé + AROME-PI), une image toutes les 5 minutes jusqu'à +2 h 30 ;
+                         en secours, modèle AROME-PI (une image tous les 1/4 d'heure).
 
 Chaque image est un PNG transparent en projection Web Mercator couvrant la France (BOUNDS),
 lissé et colorié avec la palette de l'appli. La liste des images est écrite dans data/frames.json.
@@ -61,9 +62,10 @@ HD_KM = 110
 HD_DEG_PER_PX = 0.005
 HD_SMOOTH_SIGMA_PX = 1.2
 
-PAST_HOURS = 2.0
+# 2 h 30 avant et après la dernière image radar : « maintenant » au milieu de la barre, comme Météus (25/11/2026).
+PAST_HOURS = 2.5  # 2 h avant le 25/11/2026
 RADAR_STEP_MIN = 5  # une image toutes les 5 min (10 min avant le 25/11/2026), pour une animation plus fluide
-FORECAST_HOURS = 3.0
+FORECAST_HOURS = 2.5  # 3 h (AROME-PI) avant le 25/11/2026
 
 # Seuils (mm/h) et couleurs (R, V, B, A) des classes 1..9 ; la classe 0 est transparente.
 THRESHOLDS = (0.1, 0.5, 1.0, 2.0, 4.0, 7.0, 12.0, 20.0, 40.0)
@@ -415,19 +417,7 @@ def aromepi_get(coverage: str, valid: datetime, run: datetime) -> requests.Respo
     return r
 
 
-def iter_grib(data: bytes):
-    """Les messages GRIB2 d'un fichier, dans l'ordre."""
-    pos = 0
-    while True:
-        pos = data.find(b"GRIB", pos)
-        if pos < 0 or pos + 16 > len(data):
-            return
-        total = struct.unpack(">Q", data[pos + 8 : pos + 16])[0]
-        yield data[pos : pos + total]
-        pos += total
-
-
-def piaf_get(coverage: str, run: datetime, valid: datetime, valid_end: datetime | None = None) -> requests.Response:
+def piaf_get(coverage: str, run: datetime, valid: datetime) -> requests.Response:
     params = [
         ("service", "WCS"),
         ("version", "2.0.1"),
@@ -437,7 +427,7 @@ def piaf_get(coverage: str, run: datetime, valid: datetime, valid_end: datetime 
         ("subset", f"lat({SOUTH},{NORTH})"),
     ]
     iso = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
-    params.append(("subset", f"time({iso(valid)},{iso(valid_end)})" if valid_end else f"time({iso(valid)})"))
+    params.append(("subset", f"time({iso(valid)})"))
     return SESSION.get(f"{PIAF_URL}/GetCoverage", params=params, timeout=90)
 
 
@@ -483,24 +473,13 @@ def fetch_piaf(existing_run: str | None, start: datetime, end: datetime) -> tupl
         grid, lat0, lon0, dlat, dlon = decode_grib2(msg)
         frames[t] = grib_to_output(grid * (60 / PIAF_STEP_MIN), lat0, lon0, dlat, dlon)  # mm en 5 min -> mm/h
 
-    # Toutes les échéances en une seule requête si le service l'accepte, sinon une par une.
-    try:
-        r = piaf_get(coverage, run, steps[0], steps[-1])
-        msgs = list(iter_grib(r.content)) if r.ok else []
-        log(f"PIAF run {run_stamp(run)} : requête groupée HTTP {r.status_code}, {len(r.content) / 1e6:.1f} Mo, {len(msgs)} message(s) pour {len(steps)} échéances")
-        if len(msgs) == len(steps):
-            for t, m in zip(steps, msgs):
-                add(t, m)
-    except Exception as exc:
-        log(f"PIAF requête groupée en échec : {safe_error(exc)}")
-    if len(frames) != len(steps):
-        frames.clear()
-        for t in steps:
-            r = piaf_get(coverage, run, t)
-            if not (r.ok and r.content[:4] == b"GRIB"):
-                raise RuntimeError(f"échéance {t.strftime('%H:%M')} : HTTP {r.status_code}")
-            add(t, r.content)
-            time.sleep(1.3)  # quota PIAF : 50 requêtes / minute
+    for t in steps:
+        t0 = time.monotonic()
+        r = piaf_get(coverage, run, t)
+        if not (r.ok and r.content[:4] == b"GRIB"):
+            raise RuntimeError(f"échéance {t.strftime('%H:%M')} : HTTP {r.status_code}")
+        add(t, r.content)
+        time.sleep(max(0.0, 1.25 - (time.monotonic() - t0)))  # quota PIAF : 50 requêtes / minute
     g = next(iter(frames.values()))
     finite = g[np.isfinite(g)]
     log(f"PIAF run {run_stamp(run)} : {len(frames)} échéances de {steps[0].strftime('%H:%M')} à {steps[-1].strftime('%H:%M')} UTC, max 1re image {finite.max() if finite.size else 0:.1f} mm/h")
@@ -668,27 +647,34 @@ def main() -> int:
     for k in [k for k in frames if k[0] == "radar" and datetime.fromisoformat(k[1].replace("Z", "+00:00")) < cutoff]:
         frames.pop(k)
 
-    # Prévision
+    # Prévision : PIAF (5 min), sinon AROME-PI (15 min) en secours
     old_run = state.get("forecast_run") if state.get("forecast_complete") else None
     if KEY:
+        last_radar = max(
+            (datetime.fromisoformat(k[1].replace("Z", "+00:00")) for k in frames if k[0] == "radar"), default=now
+        )
         try:
-            run, fc = fetch_forecast(old_run)
+            run, fc = fetch_piaf(old_run, last_radar, last_radar + timedelta(hours=FORECAST_HOURS))
         except Exception as exc:
-            log(f"AROME-PI en échec : {safe_error(exc)}")
-            traceback.print_exc()
+            log(f"PIAF en échec, secours AROME-PI : {safe_error(exc)}")
             run, fc = None, {}
+            try:
+                run, fc = fetch_forecast(old_run)
+            except Exception as exc:
+                log(f"AROME-PI en échec : {safe_error(exc)}")
+                traceback.print_exc()
         if run:
             for k in [k for k in frames if k[0] == "prevision"]:
                 frames.pop(k)
             for t, rate in fc.items():
                 iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
-                path = DATA / "p" / f"{run.replace(':', '').replace('.', '')}_{fname(t)}.png"
+                path = DATA / "p" / f"{''.join(c for c in run if c.isalnum())}_{fname(t)}.png"
                 render(rate, path)
                 frames[("prevision", iso)] = {"kind": "prevision", "time": iso, "file": f"data/p/{path.name}"}
             state["forecast_run"] = run
             state["forecast_complete"] = True
 
-    # La prévision commence après la dernière image radar et s'arrête à +3 h.
+    # La prévision commence après la dernière image radar et s'arrête à +FORECAST_HOURS.
     last_radar = max(
         (datetime.fromisoformat(k[1].replace("Z", "+00:00")) for k in frames if k[0] == "radar"), default=now
     )

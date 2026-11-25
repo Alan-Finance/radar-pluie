@@ -13,6 +13,7 @@
 5. **Radar encore plus fluide** (en attente, décidé avec Alan le 25/11/2026) : images intermédiaires qui suivent le déplacement des nuages. Variante conseillée : le robot n'envoie que le champ de déplacement (léger) et le téléphone fait glisser les images. À revoir après 2-3 jours de pluie avec le pas de 5 min + fondu.
 
 ## Fait (25/11/2026)
+- Radar : prévision toutes les 5 min (PIAF de Météo-France, au lieu d'AROME-PI à 15 min), 2 h 30 avant et après maintenant (trait rouge au milieu), barre du temps à l'échelle de l'heure réelle.
 - Radar : une image toutes les 5 min (au lieu de 10) et fondu enchaîné au rythme du temps réel.
 - Relevés : en-tête compact, ciels réalistes affichés immédiatement.
 

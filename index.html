@@ -565,7 +565,7 @@ const POINTS = [
   }
   const fmtDur = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
 
-  // La barre suit l'heure réelle (et non le numéro de l'image) : 2 h de passé à 5 min et la prévision à 15 min
+  // La barre suit l'heure réelle (et non le numéro de l'image), pour que chaque image ait la largeur de sa durée.
   // gardent leur vraie durée, et le trait rouge est à sa vraie place (25/11/2026).
   const minOf = (k) => frames.length ? (new Date(frames[k].time) - new Date(frames[0].time)) / 60000 : 0;
   const totMin = () => frames.length > 1 ? minOf(frames.length - 1) : 0;
@@ -596,7 +596,7 @@ const POINTS = [
   }
 
   // Lecture au rythme du temps réel : MS_PAR_MIN ms par minute entre deux images (radar 5 min → 250 ms,
-  // prévision 15 min → 750 ms), avec fondu enchaîné, puis une pause sur la dernière avant de reboucler.
+  // prévision PIAF à 5 min aussi ; AROME-PI de secours à 15 min → 750 ms), avec fondu enchaîné, puis une pause sur la dernière avant de reboucler.
   const MS_PAR_MIN = 50;
   const ecart = (k) => k + 1 < frames.length ? Math.min(900, Math.max(200, (new Date(frames[k + 1].time) - new Date(frames[k].time)) / 60000 * MS_PAR_MIN)) : FRAME_MS;
   function step() {
@@ -719,7 +719,7 @@ const POINTS = [
       if (peak < 0 || cls[k] > cls[peak]) peak = k;
     }
     let txt;
-    if (first < 0) txt = `Pas de pluie ${label} d'ici 3 h`;
+    if (first < 0) txt = `Pas de pluie ${label} d'ici 2 h 30`;
     else {
       const parts = [];
       if (first === nowIdx) parts.push(`${cap(RAIN[cls[first]])} ${label} en ce moment`);
