@@ -692,6 +692,28 @@ const POINTS = [
     });
     return best;
   }
+  // Pluie radar au point, heure par heure (passé mesuré + prévision PIAF), pour que les tranches de l'onglet Prévisions
+  // disent la même chose que le radar sur les 2 h 30 à venir (25/11/2026 : AROME annonçait 0 mm quand le radar voyait arriver la pluie).
+  // Chaque classe de couleur vaut son intensité « moyenne » (moyenne géométrique des bornes, en mm/h).
+  const MMH_CLASSE = [0.22, 0.71, 1.41, 2.83, 5.3, 9.2, 15.5, 28, 50];
+  function radarParHeure(lat, lon) {
+    const out = new Map();  // clé « AAAA-MM-JJTHH » (heure locale de début) -> { mm, min }
+    if (!meta || !frames.length) return out;
+    frames.forEach((f, k) => {
+      const c = rainAt(f, lat, lon);
+      if (c === null) return;  // image pas encore lue : l'heure garde la valeur du modèle
+      const t = new Date(f.time);
+      const dur = Math.min(15, k > 0 ? (t - new Date(frames[k - 1].time)) / 60000 : 5);
+      const deb = new Date(t.getTime() - 1); deb.setMinutes(0, 0, 0);  // l'image t couvre les 5 min avant t : heure qui les contient
+      const key = `${deb.getFullYear()}-${pad2(deb.getMonth() + 1)}-${pad2(deb.getDate())}T${pad2(deb.getHours())}`;
+      const o = out.get(key) || { mm: 0, min: 0 };
+      o.mm += c >= 0 ? MMH_CLASSE[c] * dur / 60 : 0;
+      o.min += dur;
+      out.set(key, o);
+    });
+    return out;
+  }
+  let radarHeuresSig = '';
   const RAIN = ['bruine', 'pluie faible', 'pluie faible', 'pluie modérée', 'pluie modérée', 'pluie forte', 'pluie très forte', 'pluie intense', 'orage'];
 
   // regroupe les mises à jour des carrés (une seule fois quand plusieurs images arrivent d'affilée)
@@ -733,6 +755,13 @@ const POINTS = [
     }
     $('here').innerHTML = '<b>' + esc(txt) + '</b>';
     if ($('miniHere')) $('miniHere').innerHTML = '<b>' + esc(txt) + '</b>';
+    // les tranches du jour dans Prévisions suivent le radar : on les redessine si la pluie radar au lieu a changé
+    try {  // (lieu, fc et dayIdx sont déclarés plus bas dans le script)
+      if (fc && dayIdx === 0) {
+        const sig = JSON.stringify([...radarParHeure(lieu.lat, lieu.lon)]);
+        if (sig !== radarHeuresSig) { radarHeuresSig = sig; renderForecast(); }
+      }
+    } catch {}
   }
   map.on('moveend', () => { if (!herePoint) updateHere(); });
 
@@ -1112,6 +1141,7 @@ const POINTS = [
       return { h0: bk.h0, h1: bk.h1, code: Math.max(...hs.map(h => h.code ?? 0)), day: hs.some(h => h.day), temp: mean(hs.map(h => h.temp)),
         ws: mean(hs.map(h => h.ws)) || 0, wg: Math.max(...hs.map(h => h.wg || 0)), wd: (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360,
         mm: hs.reduce((a, h) => a + (h.mm || 0), 0), prob: hs.some(h => h.prob != null) ? Math.max(...hs.map(h => h.prob || 0)) : null,
+        radar: hs.every(h => h.radar),
         rh: mean(hs.map(h => h.rh)), dp: mean(hs.map(h => h.dp)) };
     });
   }
@@ -1160,12 +1190,31 @@ const POINTS = [
     } else {
       const d = fc.days[dayIdx], l = dayLabel(d.date);
       const nowH = new Date().getHours(), today = new Date().toISOString().slice(0, 10) === d.date || dayIdx === 0;
-      const hrs = d.hours.filter(h => !(dayIdx === 0 && h.h < nowH));
+      // Open-Meteo donne pour l'heure h la pluie (et son risque) de h-1 à h : on la ramène à l'heure où elle tombe (h à h+1),
+      // sinon la tranche « 18h00-20h00 » montrait la pluie de 17h à 19h (25/11/2026).
+      const suiv = (i) => (i + 1 < d.hours.length ? d.hours[i + 1] : fc.days[dayIdx + 1] && fc.days[dayIdx + 1].hours[0]) || null;
+      let hrs = d.hours.map((h, i) => { const n = suiv(i); return n ? { ...h, mm: n.mm, prob: n.prob } : h; });
+      // Aujourd'hui : là où le radar couvre l'heure (2 h 30 avant et après maintenant), sa pluie remplace celle du modèle ;
+      // une heure couverte en partie mélange les deux au prorata. Le risque (%) n'a plus de sens là : « radar » à la place.
+      let parRadar = false;
+      if (dayIdx === 0) {
+        const rh = radarParHeure(lieu.lat, lieu.lon);
+        hrs = hrs.map(h => {
+          const r = rh.get(h.t.slice(0, 13));
+          if (!r || r.min < 5) return h;
+          parRadar = true;
+          const part = Math.min(1, r.min / 60);
+          return { ...h, mm: r.mm + (h.mm || 0) * (1 - part), radar: part >= 0.99 };
+        });
+      }
+      // total du jour affiché en tête : le même calcul que les tranches (radar compris aujourd'hui)
+      const dj = { ...d, sum: hrs.reduce((a, h) => a + (h.mm || 0), 0) };
+      hrs = hrs.filter(h => !(dayIdx === 0 && h.h < nowH));
       $('prevContent').innerHTML = `
         <div class="detail-head"><span class="big">${wxSvg(d.code, false, d.sum, 'day')}</span><div>
           <h2>${l.long}</h2>
           <p>${wText(d.code)} · <b style="color:var(--text)">${Math.round(d.tmin)}°</b> / <b style="color:var(--red)">${Math.round(d.tmax)}°</b></p>
-          <p><b style="color:#2b6a9a">Pluie : ${mmTotal(d).replace('mm', ' mm')}</b> sur la journée · risque ${d.prob ?? '–'}%${mmRange(d) ? '<br><small>(' + mmRange(d) + ')</small>' : ''}</p>
+          <p><b style="color:#2b6a9a">Pluie : ${mmTotal(dj).replace('mm', ' mm')}</b> sur la journée · risque ${d.prob ?? '–'}%${mmRange(d) ? '<br><small>(' + mmRange(d) + ')</small>' : ''}</p>
           <p>Vent ${dirTxt(d.dir)} ${r5(d.wind)} km/h, rafales ${r5(d.gust)} km/h</p>
           <p>Soleil ${d.sunrise.slice(11)} – ${d.sunset.slice(11)}</p>
           <p class="src">Source : ${d.src === 'mf' ? 'Météo-France (AROME / ARPEGE)' : 'modèle européen ECMWF (au-delà de l’horizon Météo-France)'}</p></div></div>
@@ -1174,10 +1223,11 @@ const POINTS = [
           <div class="bcard${bk.mm >= 0.1 ? ' wet' : ''}">
             <div class="bc1"><span class="ic">${wxSvg(bk.code, !bk.day, bk.mm, 'bloc')}</span><b>${bk.temp != null ? Math.round(bk.temp) + '°C' : '–'}</b></div>
             <div class="bc2">${arrow(bk.wd)}<span class="sp">${Math.round(bk.ws)} km/h</span><span class="dir">${dirDe(bk.wd)}</span><span class="gu">${Math.round(bk.wg)} km/h</span></div>
-            <div class="bc3"><span class="i">${gauge(Math.min(1, bk.mm / 5))}</span><span><b>${bk.mm >= 0.05 ? fmt1(Math.round(bk.mm * 10) / 10) : '0'}mm</b> <small>(${bk.prob != null ? bk.prob : '–'}%)</small></span>
+            <div class="bc3"><span class="i">${gauge(Math.min(1, bk.mm / 5))}</span><span><b>${bk.mm >= 0.05 ? fmt1(Math.round(bk.mm * 10) / 10) : '0'}mm</b> <small>(${bk.radar ? 'radar' : (bk.prob != null ? bk.prob : '–') + '%'})</small></span>
               <span class="i drop">💧</span><span>${bk.rh != null ? '<b>' + Math.round(bk.rh) + '%</b>' : '–'}${bk.dp != null ? ' <small>- rosée ' + Math.round(bk.dp) + '°C</small>' : ''}</span></div>
           </div>`).join('')}
-        <div class="btotal">Total pluie ${dayIdx === 0 ? 'd’ici minuit' : 'de la journée'} : <b>${fmt1(hrs.reduce((a, h) => a + (h.mm || 0), 0))} mm</b></div>`;
+        <div class="btotal">Total pluie ${dayIdx === 0 ? 'd’ici minuit' : 'de la journée'} : <b>${fmt1(hrs.reduce((a, h) => a + (h.mm || 0), 0))} mm</b></div>
+        ${parRadar ? '<p class="src" style="text-align:center">Pluie des 2 h 30 à venir : radar Météo-France (comme l’onglet Radar), puis modèle.</p>' : ''}`;
     }
   }
 
