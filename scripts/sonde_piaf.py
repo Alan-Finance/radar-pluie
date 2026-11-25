@@ -1,22 +1,24 @@
-"""Sonde temporaire (8) : essai de fetch_piaf (sans rien publier)."""
-import sys, time
+"""Sonde temporaire (9) : images PIAF et radar côte à côte (sans rien publier)."""
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 sys.path.insert(0, "scripts")
 import numpy as np
 import update as U
 
-now = datetime.now(UTC)
-start = now - timedelta(minutes=12)
-t0 = time.time()
-stamp, fc = U.fetch_piaf(None, start, start + timedelta(hours=2, minutes=30))
-print("run", stamp, "nb", len(fc), "durée", round(time.time() - t0, 1), "s")
-for t, g in sorted(fc.items())[:3] + sorted(fc.items())[-2:]:
+out = Path("sonde"); out.mkdir(exist_ok=True)
+radar = U.fetch_radar()
+tr = max(radar)
+U.render(radar[tr], out / f"radar_{tr:%H%M}.png")
+run = U.piaf_latest_run(datetime.now(UTC))
+cov = U.PIAF_COVERAGE.format(run=U.run_stamp(run))
+for m in (5, 30, 90, 180):
+    t = run + timedelta(minutes=m)
+    g, lat0, lon0, dlat, dlon = U.decode_grib2(U.piaf_get(cov, run, t).content)
+    rate = U.grib_to_output(g * 12, lat0, lon0, dlat, dlon)
+    U.render(rate, out / f"piaf_{t:%H%M}.png")
+    j, i = np.unravel_index(np.nanargmax(g), g.shape)
     f = g[np.isfinite(g)]
-    print(t.strftime("%H:%M"), "pixels pluie>0.1:", int((f > 0.1).sum()), "p99", round(float(np.percentile(f, 99.9)), 2), "max", round(float(f.max()), 1))
-# cohérence des unités : PT15M ~ 3 x PT5M ?
-run = U.piaf_latest_run(now)
-t = run + timedelta(minutes=15)
-a = U.decode_grib2(U.piaf_get(U.PIAF_COVERAGE.format(run=U.run_stamp(run)), run, t).content)[0]
-b = U.decode_grib2(U.piaf_get(U.PIAF_COVERAGE.format(run=U.run_stamp(run)).replace("_PT5M", "_PT15M"), run, t).content)[0]
-m = np.isfinite(a) & np.isfinite(b) & (b > 0.5)
-print("somme PT5M", float(np.nansum(a)), "somme PT15M", float(np.nansum(b)), "rapport", float(np.nansum(b) / max(np.nansum(a), 1e-9)))
+    print(t.strftime("%H:%M"), "max", float(f.max()) * 12, "à lat", lat0 + j * dlat, "lon", lon0 + i * dlon, "nb NaN", int(np.isnan(g).sum()), "valeurs distinctes hautes", np.unique(np.round(f[f * 12 > 60], 2))[:10])
+f = radar[tr][np.isfinite(radar[tr])]
+print("radar", tr.strftime("%H:%M"), "pixels>0.1", int((f > 0.1).sum()), "max", float(f.max()))
