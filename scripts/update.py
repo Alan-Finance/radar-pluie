@@ -51,7 +51,7 @@ PIAF_URL = "https://api.meteofrance.fr/pro/piaf/1.0/wcs/MF-NWP-HIGHRES-PIAF-001-
 PIAF_COVERAGE = "TOTAL_PRECIPITATION_RATE__GROUND_OR_WATER_SURFACE___{run}_PT5M"
 PIAF_STEP_MIN = 5
 PIAF_HD: dict = {}  # échéance -> pluie (mm/h) sur la grille HD autour du lieu (PIAF est à 1 km : lissage plus fort)
-PIAF_HD_SMOOTH_SIGMA_PX = 2.0
+PIAF_HD_SMOOTH_SIGMA_PX = 1.0  # 2.0 au premier essai : trop flou par rapport à Météus (25/11/2026)
 
 # Zone dessinée (ouest, sud, est, nord) = celle de la prévision AROME-PI : métropole + Corse.
 WEST, SOUTH, EAST, NORTH = -6.0, 41.0, 10.5, 51.5
