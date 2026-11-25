@@ -12,3 +12,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/sonde_piaf.py
+        env:
+          METEOFRANCE_KEY: ${{ secrets.METEOFRANCE_KEY }}
