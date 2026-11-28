@@ -989,6 +989,19 @@ const POINTS = [
     if (code >= 95) return 'storm';
     return 'rain';
   }
+  // temps représentatif d'un groupe d'heures (journée ou tranche de 2 h). Avant : le code le plus fort → une seule heure
+  // « couvert » mettait un nuage sur toute une journée ensoleillée (signalé par Alan le 28/11/2026).
+  // Pluie/neige/orage seulement si une heure en donne vraiment (≥ 0,1 mm) ; brouillard s'il couvre la moitié des heures ;
+  // sinon nébulosité moyenne (0 ensoleillé … 3 couvert).
+  function codeRepr(hs) {
+    const v = hs.filter(h => h.code != null);
+    if (!v.length) return null;
+    const wet = v.filter(h => h.code >= 51 && (h.mm || 0) >= 0.1);
+    if (wet.length) return Math.max(...wet.map(h => h.code));
+    const fog = v.filter(h => h.code === 45 || h.code === 48);
+    if (fog.length * 2 >= v.length) return Math.max(...fog.map(h => h.code));
+    return Math.round(v.reduce((a, h) => a + (h.code <= 3 ? h.code : 3), 0) / v.length);
+  }
   function dropsFor(mm, per) {  // per : 'day' ou 'bloc' (2 h)
     const t = per === 'day' ? [0.2, 1, 5, 15] : [0.1, 0.5, 2, 5];
     return mm == null ? 0 : t.filter(x => mm >= x).length;
@@ -1098,8 +1111,8 @@ const POINTS = [
         const wmean = hours.reduce((a, h) => a + (h.ws || 0), 0) / Math.max(1, hours.length);
         const hsum = hours.reduce((a, h) => a + (h.mm || 0), 0);
         const temps = hours.map(h => h.temp).filter(v => v != null);
-        const dayCodes = hours.filter(h => h.day).map(h => h.code).filter(v => v != null);
-        const code = fromMF && dayCodes.length ? Math.max(...dayCodes) : f.daily.weather_code[i];
+        const dayCode = codeRepr(hours.filter(h => h.day));
+        const code = fromMF && dayCode != null ? dayCode : f.daily.weather_code[i];
         let vx = 0, vy = 0; hours.forEach(h => { if (h.wd != null) { vx += Math.sin(h.wd * Math.PI / 180) * (h.ws || 1); vy += Math.cos(h.wd * Math.PI / 180) * (h.ws || 1); } });
         const dir = fromMF ? (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360 : f.daily.wind_direction_10m_dominant[i];
         const old = fc && fc.days && fc.days.find(x => x.date === date);
@@ -1138,7 +1151,7 @@ const POINTS = [
     return out.map(bk => {
       const hs = bk.hs;
       let vx = 0, vy = 0; hs.forEach(h => { if (h.wd != null) { vx += Math.sin(h.wd * Math.PI / 180) * (h.ws || 1); vy += Math.cos(h.wd * Math.PI / 180) * (h.ws || 1); } });
-      return { h0: bk.h0, h1: bk.h1, code: Math.max(...hs.map(h => h.code ?? 0)), day: hs.some(h => h.day), temp: mean(hs.map(h => h.temp)),
+      return { h0: bk.h0, h1: bk.h1, code: codeRepr(hs) ?? 0, day: hs.some(h => h.day), temp: mean(hs.map(h => h.temp)),
         ws: mean(hs.map(h => h.ws)) || 0, wg: Math.max(...hs.map(h => h.wg || 0)), wd: (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360,
         mm: hs.reduce((a, h) => a + (h.mm || 0), 0), prob: hs.some(h => h.prob != null) ? Math.max(...hs.map(h => h.prob || 0)) : null,
         radar: hs.every(h => h.radar),
